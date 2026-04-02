@@ -52,7 +52,7 @@
   <!-- ============================================================ -->
   <h2>Environment Setup</h2>
 
-  <p>Kiro is a desktop IDE &mdash; it does not need to be installed in the Domino environment. Only the MCP server dependencies are required (covered in the <a href="index.html">Overview</a> environment setup).</p>
+  <p>Kiro is a desktop IDE, it does not need to be installed in the Domino environment. Only the MCP server dependencies are required (covered in the <a href="index.html">Overview</a> environment setup).</p>
 
   <p>The Kiro CLI can optionally be installed in the environment for terminal-based use. See <a href="https://kiro.dev/cli/">Kiro CLI documentation</a> for installation instructions.</p>
 
@@ -222,8 +222,8 @@ utilities, get_domino_environment_info, open_web_browser.
   <p>Kiro has <strong>two</strong> context systems that serve different purposes:</p>
 
   <ul>
-    <li><strong>Steering files</strong> (<code>.kiro/steering/</code>) &mdash; always-on rules and context. Best for platform behavior, coding standards, and compliance rules that apply to every interaction.</li>
-    <li><strong>Agent Skills</strong> (<code>.kiro/skills/</code>) &mdash; on-demand workflow knowledge. Best for specific pipelines, data access patterns, and domain procedures that are only relevant sometimes.</li>
+    <li><strong>Steering files</strong> (<code>.kiro/steering/</code>), always-on rules and context. Best for platform behavior, coding standards, and compliance rules that apply to every interaction.</li>
+    <li><strong>Agent Skills</strong> (<code>.kiro/skills/</code>), on-demand workflow knowledge. Best for specific pipelines, data access patterns, and domain procedures that are only relevant sometimes.</li>
   </ul>
 
   <p>Agent Skills follow the same <code>SKILL.md</code> standard used by Claude Code and Codex. This makes skills <strong>portable</strong> between these three agents with no changes required.</p>
@@ -284,7 +284,7 @@ Step-by-step for the most common task.
   <h2>Extending</h2>
 
   <h3>Custom MCP servers</h3>
-  <p>Add additional MCP servers to <code>.kiro/settings/mcp.json</code> alongside the Domino server. The format is the same &mdash; add another entry under <code>mcpServers</code>.</p>
+  <p>Add additional MCP servers to <code>.kiro/settings/mcp.json</code> alongside the Domino server. The format is the same, add another entry under <code>mcpServers</code>.</p>
 
   <h3>Agent hooks</h3>
   <p>Kiro supports event-driven agent hooks that trigger on specific events: file saved, prompt submitted, response received, and more. Use hooks to automate repetitive tasks like linting on save or pre-populating context.</p>
@@ -303,7 +303,7 @@ Step-by-step for the most common task.
     <p>"What Domino skills do you have?"</p>
   </blockquote>
 
-  <p>Kiro should respond with the Domino platform skills from the plugin. If it does, the template is working correctly. When team members create new projects from the template, <code>domino_project_settings.md</code> is populated automatically at workspace start &mdash; they only need to add their domain skills to <code>.kiro/skills/</code> and steering files to <code>.kiro/steering/</code>.</p>
+  <p>Kiro should respond with the Domino platform skills from the plugin. If it does, the template is working correctly. When team members create new projects from the template, <code>domino_project_settings.md</code> is populated automatically at workspace start, they only need to add their domain skills to <code>.kiro/skills/</code> and steering files to <code>.kiro/steering/</code>.</p>
 
   <!-- ============================================================ -->
   <!-- RESOURCES                                                     -->

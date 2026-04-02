@@ -107,7 +107,7 @@ USER ubuntu</code></pre>
   </p>
 
   <pre><code><span class="comment">#!/bin/bash</span>
-<span class="comment"># start_workspace.sh — Domino pre-run script for Codex</span>
+<span class="comment"># start_workspace.sh: Domino pre-run script for Codex</span>
 <span class="comment"># Run once automatically at workspace start.</span>
 
 <span class="keyword">set</span> -e
@@ -191,13 +191,13 @@ environment variables:
 The `domino_server` MCP is configured in `.codex/config.toml` and
 requires `DOMINO_API_KEY` and `DOMINO_HOST` environment variables.
 Available tools:
-- `run_domino_job` — run a script as a Domino job
+- `run_domino_job`: run a script as a Domino job
 - `check_domino_job_run_status` / `check_domino_job_run_results`
-- `list_domino_project_files` — browse project files
+- `list_domino_project_files`: browse project files
 - `sync_local_file_to_domino` / `smart_sync_file`
 - `upload_file_to_domino_project` / `download_file_from_domino_project`
-- `get_domino_environment_info` — inspect compute environments
-- `open_web_browser` — open Domino URLs
+- `get_domino_environment_info`: inspect compute environments
+- `open_web_browser`: open Domino URLs
 
 
 <span class="comment">## Core Behavior</span>

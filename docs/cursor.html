@@ -24,7 +24,7 @@
   <h1>Cursor on Domino</h1>
   <p class="subtitle">Agent-specific configuration for Cursor</p>
 
-  <p><a href="https://cursor.com/docs">Cursor</a> is an AI code editor built as a fork of VS Code. It is an IDE-based agent &mdash; it runs on the user's machine and connects to a Domino workspace remotely. It does <strong>not</strong> need to be installed in the Domino environment.</p>
+  <p><a href="https://cursor.com/docs">Cursor</a> is an AI code editor built as a fork of VS Code. It is an IDE-based agent, it runs on the user's machine and connects to a Domino workspace remotely. It does <strong>not</strong> need to be installed in the Domino environment.</p>
 
   <p>This page covers the Cursor-specific template files. For shared infrastructure (the Domino plugin, environment setup, MCP server dependencies, building domain skills, and custom MCP servers), see the <a href="index.html">Overview</a>.</p>
 
@@ -47,7 +47,7 @@
   <!-- ============================================================ -->
   <h2>Environment Setup</h2>
 
-  <p>Cursor is a desktop IDE &mdash; <strong>no install is needed in the Domino environment</strong>. Users install Cursor on their own machine and connect to the Domino workspace. The only environment requirement is the MCP server dependencies (<code>fastmcp</code>, <code>requests</code>, <code>python-dotenv</code>), which are covered in the common Dockerfile base on the <a href="index.html">Overview</a> page.</p>
+  <p>Cursor is a desktop IDE, <strong>no install is needed in the Domino environment</strong>. Users install Cursor on their own machine and connect to the Domino workspace. The only environment requirement is the MCP server dependencies (<code>fastmcp</code>, <code>requests</code>, <code>python-dotenv</code>), which are covered in the common Dockerfile base on the <a href="index.html">Overview</a> page.</p>
 
   <!-- ============================================================ -->
   <!-- PRE-RUN SCRIPT                                                -->
@@ -228,7 +228,7 @@ alwaysApply: <span class="keyword">false</span>
 
   <p>Key differences:</p>
   <ul>
-    <li>Drop the <code>name</code> field &mdash; the filename serves as the identifier.</li>
+    <li>Drop the <code>name</code> field, the filename serves as the identifier.</li>
     <li>Add <code>alwaysApply</code>, <code>globs</code>, or neither to control when the rule is loaded (see the rule types table above).</li>
     <li>The body content (Markdown) stays the same.</li>
   </ul>
@@ -256,7 +256,7 @@ alwaysApply: <span class="keyword">false</span>
   <h2>Extending</h2>
 
   <h3>Custom MCP servers</h3>
-  <p>Add additional servers to <code>.cursor/mcp.json</code> under the <code>mcpServers</code> key &mdash; the format is the same as Claude Code's <code>.mcp.json</code>:</p>
+  <p>Add additional servers to <code>.cursor/mcp.json</code> under the <code>mcpServers</code> key, the format is the same as Claude Code's <code>.mcp.json</code>:</p>
 
 <pre><code>{
   <span class="string">"mcpServers"</span>: {
@@ -276,7 +276,7 @@ alwaysApply: <span class="keyword">false</span>
 }</code></pre>
 
   <h3>No slash commands</h3>
-  <p>Cursor does not have a slash-command equivalent like Claude Code's <code>.claude/commands/</code>. For reusable multi-step workflows, create <strong>Agent Requested</strong> rules instead &mdash; rules with only a <code>description</code> in the frontmatter that the agent loads when relevant.</p>
+  <p>Cursor does not have a slash-command equivalent like Claude Code's <code>.claude/commands/</code>. For reusable multi-step workflows, create <strong>Agent Requested</strong> rules instead, rules with only a <code>description</code> in the frontmatter that the agent loads when relevant.</p>
 
   <!-- ============================================================ -->
   <!-- VERIFICATION                                                  -->

@@ -29,7 +29,7 @@
   <!-- ============================================================ -->
   <h2>Overview</h2>
 
-  <p>AI coding agents can take actions on your behalf &mdash; running workflows, querying systems, analyzing data, and generating outputs &mdash; but out of the box they have no knowledge of Domino, your internal tooling, or your domain. This guide shows how to close that gap.</p>
+  <p>AI coding agents can take actions on your behalf, running workflows, querying systems, analyzing data, and generating outputs, but out of the box they have no knowledge of Domino, your internal tooling, or your domain. This guide shows how to close that gap.</p>
 
   <h3>Why the Domino plugin matters</h3>
   <p>Without it, the agent has no knowledge of how Domino works. The plugin gives the agent everything it needs to operate on the platform: running jobs, accessing datasets, deploying apps, tracking experiments. You can tell it to run your training script as a Domino Job and it knows exactly what to do.</p>
@@ -39,8 +39,8 @@
 
   <h3>Two layers</h3>
   <ul>
-    <li><strong>The Domino platform plugin</strong> &mdash; provided by Domino, covers the full platform. This is what you get out of the box.</li>
-    <li><strong>Your skills</strong> &mdash; knowledge your team adds on top. Not included in the template. Explained in <a href="#part4">Part 4</a>.</li>
+    <li><strong>The Domino platform plugin</strong>, provided by Domino, covers the full platform. This is what you get out of the box.</li>
+    <li><strong>Your skills</strong>, knowledge your team adds on top. Not included in the template. Explained in <a href="#part4">Part 4</a>.</li>
   </ul>
 
   <p>This guide covers the shared infrastructure that is <em>the same regardless of which agent you use</em>. For agent-specific configuration, see the individual guides:</p>
@@ -64,16 +64,16 @@
 
   <p>It also bundles the <code>domino_server</code> MCP server, which gives the agent runtime tools:</p>
   <ul>
-    <li><code>run_domino_job</code> &mdash; run a script as a Domino job</li>
-    <li><code>check_domino_job_run_status</code> / <code>check_domino_job_run_results</code> &mdash; poll and retrieve job output</li>
-    <li><code>list_domino_project_files</code> &mdash; browse project files</li>
-    <li><code>sync_local_file_to_domino</code> / <code>smart_sync_file</code> / <code>upload_file_to_domino_project</code> / <code>download_file_from_domino_project</code> &mdash; file sync</li>
-    <li><code>get_domino_environment_info</code> &mdash; inspect compute environments</li>
-    <li><code>open_web_browser</code> &mdash; open Domino URLs</li>
+    <li><code>run_domino_job</code>, run a script as a Domino job</li>
+    <li><code>check_domino_job_run_status</code> / <code>check_domino_job_run_results</code>, poll and retrieve job output</li>
+    <li><code>list_domino_project_files</code>, browse project files</li>
+    <li><code>sync_local_file_to_domino</code> / <code>smart_sync_file</code> / <code>upload_file_to_domino_project</code> / <code>download_file_from_domino_project</code>, file sync</li>
+    <li><code>get_domino_environment_info</code>, inspect compute environments</li>
+    <li><code>open_web_browser</code>, open Domino URLs</li>
   </ul>
 
   <blockquote>
-    <p><strong>Agent-agnostic by design.</strong> The MCP server code is fully agent-agnostic &mdash; the same server works with every agent. Only the config file that points to it differs per agent.</p>
+    <p><strong>Agent-agnostic by design.</strong> The MCP server code is fully agent-agnostic, the same server works with every agent. Only the config file that points to it differs per agent.</p>
   </blockquote>
 
   <h3>Plugin directory structure</h3>
@@ -102,7 +102,7 @@
 <span class="comment"># ── Install MCP server dependencies (required) ──</span>
 <span class="keyword">RUN</span> pip install --no-cache-dir fastmcp requests python-dotenv
 
-<span class="comment"># ── Optional packages — add what your team needs ──</span>
+<span class="comment"># ── Optional packages: add what your team needs ──</span>
 <span class="keyword">RUN</span> pip install dash dash-cytoscape ydata_profiling streamlit st-pages \
     streamlit-extras pandas pyarrow requests tenacity python-dateutil \
     gym torch jupyter-ai[all] jupyter-ai-magics[all] h2o prophet optuna \
@@ -110,13 +110,13 @@
 <span class="keyword">RUN</span> pip install --upgrade dominodatalab-data snowflake-connector-python pyarrow
 <span class="keyword">USER</span> ubuntu</code></pre>
 
-  <p>Agent-specific additions (install commands, directories, environment variables) vary &mdash; see the individual agent guides for what to add on top of this base.</p>
+  <p>Agent-specific additions (install commands, directories, environment variables) vary, see the individual agent guides for what to add on top of this base.</p>
 
   <h3>Base image requirements</h3>
   <p>The base image must be <strong>Debian/Ubuntu-based</strong> (uses <code>apt-get</code> and the <code>ubuntu</code> user). All Domino standard environments meet this requirement.</p>
 
   <blockquote>
-    <p><strong>Note for IDE-based agents (Cursor, Kiro, Copilot):</strong> The agent itself does not need to be installed in the environment &mdash; it runs in the user's local IDE. Only the MCP server dependencies are needed in the Domino environment.</p>
+    <p><strong>Note for IDE-based agents (Cursor, Kiro, Copilot):</strong> The agent itself does not need to be installed in the environment, it runs in the user's local IDE. Only the MCP server dependencies are needed in the Domino environment.</p>
   </blockquote>
 
   <!-- ============================================================ -->
@@ -150,14 +150,14 @@ user_name=<span class="string">"$DOMINO_USER_NAME"</span></code></pre>
   </table>
 
   <h3>Agent-specific template files</h3>
-  <p>Each agent requires its own system prompt file, MCP configuration file, and settings. These are covered in the individual agent guides. A single template <strong>can support multiple agents simultaneously</strong> &mdash; each agent reads only its own files, so they do not conflict.</p>
+  <p>Each agent requires its own system prompt file, MCP configuration file, and settings. These are covered in the individual agent guides. A single template <strong>can support multiple agents simultaneously</strong>, each agent reads only its own files, so they do not conflict.</p>
 
   <!-- ============================================================ -->
   <!-- PART 4: BUILDING YOUR DOMAIN SKILLS                           -->
   <!-- ============================================================ -->
   <h2 id="part4">Part 4: Building Your Domain Skills</h2>
 
-  <p>Out of the box, the template gives the agent knowledge of the Domino platform only. The domain layer &mdash; your workflows, your data, your internal APIs &mdash; is empty. This is where your team's work begins.</p>
+  <p>Out of the box, the template gives the agent knowledge of the Domino platform only. The domain layer, your workflows, your data, your internal APIs, is empty. This is where your team's work begins.</p>
 
   <h3>Two scopes</h3>
   <ul>
@@ -165,7 +165,7 @@ user_name=<span class="string">"$DOMINO_USER_NAME"</span></code></pre>
     <li><strong>Org-wide skills:</strong> live in a dedicated git repository, attached to the project template as Imported Code, and symlinked at workspace start. Update the repo once; every project sees it.</li>
   </ul>
 
-  <p>The concept is the same regardless of agent &mdash; modular instruction files loaded on demand. The file format varies:</p>
+  <p>The concept is the same regardless of agent, modular instruction files loaded on demand. The file format varies:</p>
 
   <table>
     <thead>
@@ -205,7 +205,7 @@ user_name=<span class="string">"$DOMINO_USER_NAME"</span></code></pre>
   </table>
 
   <blockquote>
-    <p><strong>Portability:</strong> Claude Code, Codex, and Kiro all follow the open <strong>Agent Skills standard</strong> &mdash; skills are portable between them with minimal changes.</p>
+    <p><strong>Portability:</strong> Claude Code, Codex, and Kiro all follow the open <strong>Agent Skills standard</strong>, skills are portable between them with minimal changes.</p>
   </blockquote>
 
   <h3>System prompt vs. Skills</h3>
@@ -219,7 +219,7 @@ user_name=<span class="string">"$DOMINO_USER_NAME"</span></code></pre>
   <!-- ============================================================ -->
   <h2>Part 5: Custom MCP Servers</h2>
 
-  <p>Most teams will not need this initially &mdash; skills cover a wide range of use cases. Write a custom MCP server when you need the agent to <strong>take actions against an internal system at runtime</strong>: querying a proprietary database, submitting to an internal API, or fetching from a data catalog.</p>
+  <p>Most teams will not need this initially, skills cover a wide range of use cases. Write a custom MCP server when you need the agent to <strong>take actions against an internal system at runtime</strong>: querying a proprietary database, submitting to an internal API, or fetching from a data catalog.</p>
 
   <h3>Example: minimal FastMCP server</h3>
 
@@ -252,15 +252,15 @@ mcp = FastMCP(<span class="string">"server-1"</span>)
     mcp.run()</code></pre>
 
   <blockquote>
-    <p><strong>Agent-agnostic.</strong> The MCP server code is fully agent-agnostic &mdash; the same Python server works with every agent. Only the config file that points to it differs.</p>
+    <p><strong>Agent-agnostic.</strong> The MCP server code is fully agent-agnostic, the same Python server works with every agent. Only the config file that points to it differs.</p>
   </blockquote>
 
   <h3>Key principles</h3>
   <ul>
-    <li><strong>One tool per action</strong> &mdash; keep tools focused and composable.</li>
-    <li><strong>Precise docstrings</strong> &mdash; the agent reads them to decide when to call the tool.</li>
-    <li><strong>Return structured data</strong> &mdash; JSON objects, not free-form text.</li>
-    <li><strong>Include clickable URLs</strong> &mdash; when your tool creates something with a UI, return the URL so the agent can share it with the user.</li>
+    <li><strong>One tool per action</strong>, keep tools focused and composable.</li>
+    <li><strong>Precise docstrings</strong>, the agent reads them to decide when to call the tool.</li>
+    <li><strong>Return structured data</strong>, JSON objects, not free-form text.</li>
+    <li><strong>Include clickable URLs</strong>, when your tool creates something with a UI, return the URL so the agent can share it with the user.</li>
   </ul>
 
   <!-- ============================================================ -->

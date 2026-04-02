@@ -32,8 +32,8 @@
   </p>
 
   <blockquote>
-    <p><strong>Note:</strong> The shared setup &mdash; the Domino plugin, common Dockerfile dependencies,
-    and the project template concept &mdash; is covered on the
+    <p><strong>Note:</strong> The shared setup, the Domino plugin, common Dockerfile dependencies,
+    and the project template concept, is covered on the
     <a href="index.html">Overview</a> page. This page focuses on the Claude Code-specific configuration.</p>
   </blockquote>
 
@@ -111,13 +111,13 @@ ENV PATH="/home/ubuntu/.claude/bin:/home/ubuntu/.local/bin:$PATH"</code></pre>
   </p>
 
   <pre><code><span class="comment">#!/bin/bash
-# start_workspace.sh — Domino pre-run script for Claude Code
+# start_workspace.sh: Domino pre-run script for Claude Code
 # Handles installation, per-user persistence, and plugin discovery.
 # Run once automatically at workspace start.
 #
 # Security: OAuth credentials (~/.claude/.credentials.json) are scrubbed
 # on each cold start to prevent token leakage via shared /mnt/artifacts.
-# Preferences (~/.claude.json) are safe to persist — they contain no secrets.</span>
+# Preferences (~/.claude.json) are safe to persist: they contain no secrets.</span>
 
 set -e
 
@@ -165,7 +165,7 @@ HOME_CLAUDE="$HOME/.claude"
 <span class="comment"># ── 4. Force fresh authentication ──</span>
 rm -f "$HOME/.claude/.credentials.json" 2&gt;/dev/null || true
 rm -f "$HOME/.claude/backups/.claude.json.backup."* 2&gt;/dev/null || true
-echo "[✓] Cleared OAuth credentials — you will need to re-authenticate"
+echo "[✓] Cleared OAuth credentials: you will need to re-authenticate"
 
 <span class="comment"># ── 5. Persist ~/.claude.json (preferences, not secrets) ──</span>
 PERSIST_JSON=<span class="string">"/mnt/artifacts/.claude-users/${PERSIST_USER}/.claude.json"</span>
@@ -235,12 +235,12 @@ echo "=== Claude Code setup complete ==="</code></pre>
 
   <h4>What the script handles</h4>
   <ol>
-    <li><strong>Install Claude Code</strong> &mdash; if <code>claude</code> is not on the PATH, installs it via the official installer.</li>
-    <li><strong>Per-user persistent storage</strong> &mdash; symlinks <code>~/.claude</code> to <code>/mnt/artifacts/.claude-users/$USER/.claude</code> so settings survive workspace restarts.</li>
-    <li><strong>Force fresh authentication</strong> &mdash; scrubs OAuth credentials (<code>.credentials.json</code>) on each cold start to prevent token leakage via shared artifacts.</li>
-    <li><strong>Persist preferences</strong> &mdash; symlinks <code>~/.claude.json</code> to persistent storage. Preferences contain no secrets and are safe to persist.</li>
-    <li><strong>Register plugins</strong> &mdash; symlinks skills, commands, agents, and output-styles from the Domino plugin into the project's <code>.claude/</code> directory.</li>
-    <li><strong>Populate project settings</strong> &mdash; writes <code>$DOMINO_PROJECT_NAME</code> and <code>$DOMINO_USER_NAME</code> into <code>domino_project_settings.md</code>.</li>
+    <li><strong>Install Claude Code</strong>, if <code>claude</code> is not on the PATH, installs it via the official installer.</li>
+    <li><strong>Per-user persistent storage</strong>, symlinks <code>~/.claude</code> to <code>/mnt/artifacts/.claude-users/$USER/.claude</code> so settings survive workspace restarts.</li>
+    <li><strong>Force fresh authentication</strong>, scrubs OAuth credentials (<code>.credentials.json</code>) on each cold start to prevent token leakage via shared artifacts.</li>
+    <li><strong>Persist preferences</strong>, symlinks <code>~/.claude.json</code> to persistent storage. Preferences contain no secrets and are safe to persist.</li>
+    <li><strong>Register plugins</strong>, symlinks skills, commands, agents, and output-styles from the Domino plugin into the project's <code>.claude/</code> directory.</li>
+    <li><strong>Populate project settings</strong>, writes <code>$DOMINO_PROJECT_NAME</code> and <code>$DOMINO_USER_NAME</code> into <code>domino_project_settings.md</code>.</li>
   </ol>
 
   <!-- ────────────────────────────────────────────── -->
@@ -308,15 +308,15 @@ This must also happen automatically at `/init` time.
 
 The `domino_server` MCP is configured in `.mcp.json` and requires
 `DOMINO_API_KEY` and `DOMINO_HOST` environment variables. Available tools:
-- `run_domino_job` — run a script as a Domino job
-- `check_domino_job_run_status` / `check_domino_job_run_results` — poll
+- `run_domino_job`: run a script as a Domino job
+- `check_domino_job_run_status` / `check_domino_job_run_results`: poll
   and retrieve job output
-- `list_domino_project_files` — browse project files
+- `list_domino_project_files`: browse project files
 - `sync_local_file_to_domino` / `smart_sync_file` /
   `upload_file_to_domino_project` /
-  `download_file_from_domino_project` — file sync
-- `get_domino_environment_info` — inspect compute environments
-- `open_web_browser` — open Domino URLs
+  `download_file_from_domino_project`: file sync
+- `get_domino_environment_info`: inspect compute environments
+- `open_web_browser`: open Domino URLs
 
 
 <span class="comment">## Core Behavior</span>

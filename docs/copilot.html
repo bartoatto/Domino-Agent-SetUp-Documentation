@@ -59,7 +59,7 @@
 
 <h2>Environment Setup</h2>
 
-<p>Copilot is a VS Code extension &mdash; it does <strong>not</strong> need to be installed in the Domino environment. The environment only needs the MCP server dependencies (covered on the <a href="index.html">Overview</a> page).</p>
+<p>Copilot is a VS Code extension, it does <strong>not</strong> need to be installed in the Domino environment. The environment only needs the MCP server dependencies (covered on the <a href="index.html">Overview</a> page).</p>
 
 <p><strong>Users need:</strong></p>
 <ul>
@@ -72,10 +72,10 @@
 
 <h2>Pre-Run Script</h2>
 
-<p>Very simple &mdash; just populate <code>domino_project_settings.md</code>:</p>
+<p>Very simple, just populate <code>domino_project_settings.md</code>:</p>
 
 <pre><code class="language-bash">#!/bin/bash
-# start_workspace.sh — Domino pre-run script for GitHub Copilot
+# start_workspace.sh: Domino pre-run script for GitHub Copilot
 set -e
 echo "=== Copilot Workspace Setup ==="
 
@@ -98,7 +98,7 @@ echo "=== Copilot setup complete ==="</code></pre>
 
 <h3><code>.vscode/mcp.json</code></h3>
 
-<p>Starts the Domino MCP server. <strong>Important:</strong> VS Code uses <code>servers</code> as the root key, <em>not</em> <code>mcpServers</code>. This is the most common setup mistake &mdash; copy-pasting a Claude Code or Cursor config without changing the root key means the server will not load.</p>
+<p>Starts the Domino MCP server. <strong>Important:</strong> VS Code uses <code>servers</code> as the root key, <em>not</em> <code>mcpServers</code>. This is the most common setup mistake, copy-pasting a Claude Code or Cursor config without changing the root key means the server will not load.</p>
 
 <pre><code class="language-json">{
   "servers": {
@@ -136,13 +136,13 @@ immediately update the file with the real values from environment variables:
 ## MCP Server
 
 The `domino_server` MCP is configured in `.vscode/mcp.json`. Available tools:
-- `run_domino_job` — run a script as a Domino job
-- `check_domino_job_run_status` / `check_domino_job_run_results` — poll and retrieve job output
-- `list_domino_project_files` — browse project files
+- `run_domino_job`: run a script as a Domino job
+- `check_domino_job_run_status` / `check_domino_job_run_results`: poll and retrieve job output
+- `list_domino_project_files`: browse project files
 - `sync_local_file_to_domino` / `smart_sync_file` / `upload_file_to_domino_project`
-  / `download_file_from_domino_project` — file sync
-- `get_domino_environment_info` — inspect compute environments
-- `open_web_browser` — open Domino URLs
+  / `download_file_from_domino_project`: file sync
+- `get_domino_environment_info`: inspect compute environments
+- `open_web_browser`: open Domino URLs
 
 ## Core Behavior
 
