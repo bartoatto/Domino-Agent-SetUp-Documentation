@@ -100,14 +100,29 @@ USER ubuntu</code></pre>
   <h2>Part 3: Pre-Run Script</h2>
 
   <p>
-    The pre-run script is simpler than Claude Code's because Codex has no
-    <code>~/.claude</code> persistence layer to manage. It handles three things:
-    installing Codex if not present, symlinking skills from the plugin, and
-    populating <code>domino_project_settings.md</code>.
+    The pre-run script handles four things: installing Codex if not present,
+    setting up per-user persistent storage for Codex config and history,
+    symlinking skills from the plugin, and populating
+    <code>domino_project_settings.md</code>.
+  </p>
+
+  <h3>What gets persisted</h3>
+  <p>Codex stores user configuration and history under <code>~/.codex/</code>:</p>
+  <ul>
+    <li><code>config.toml</code>: user preferences, profiles, model settings</li>
+    <li>SQLite history database: conversation history (controlled by <code>history.persistence</code>)</li>
+    <li>Auth credentials: ChatGPT login token or API key reference (stored as file in Domino since no keyring is available)</li>
+  </ul>
+  <p>
+    Without persistence, this directory is lost every time a workspace stops.
+    The pre-run script symlinks <code>~/.codex</code> to
+    <code>/mnt/artifacts</code> so it survives across workspace restarts,
+    following the same pattern as the Claude Code setup.
   </p>
 
   <pre><code><span class="comment">#!/bin/bash</span>
 <span class="comment"># start_workspace.sh: Domino pre-run script for Codex</span>
+<span class="comment"># Handles installation, per-user persistence, plugin discovery.</span>
 <span class="comment"># Run once automatically at workspace start.</span>
 
 <span class="keyword">set</span> -e
@@ -121,7 +136,37 @@ echo <span class="string">"=== Codex Workspace Setup ==="</span>
 <span class="keyword">fi</span>
 echo <span class="string">"[ok] Codex: $(codex --version 2&gt;/dev/null || echo 'installed')"</span>
 
-<span class="comment"># ── 2. Symlink skills from plugin ──</span>
+<span class="comment"># ── 2. Per-user persistent storage ──</span>
+<span class="keyword">if</span> [ -n <span class="string">"$DOMINO_USER_NAME"</span> ]; <span class="keyword">then</span>
+    PERSIST_USER=<span class="string">"$DOMINO_USER_NAME"</span>
+<span class="keyword">else</span>
+    PERSIST_USER=<span class="string">"$USER"</span>
+    echo <span class="string">"[!] DOMINO_USER_NAME not set, falling back to: $PERSIST_USER"</span>
+<span class="keyword">fi</span>
+
+PERSIST_DIR=<span class="string">"/mnt/artifacts/.codex-users/${PERSIST_USER}/.codex"</span>
+mkdir -p <span class="string">"$PERSIST_DIR"</span>
+echo <span class="string">"[i] Persistent storage: $PERSIST_DIR"</span>
+
+<span class="comment"># ── 3. Symlink ~/.codex to persistent storage ──</span>
+HOME_CODEX=<span class="string">"$HOME/.codex"</span>
+
+<span class="keyword">if</span> [ -d <span class="string">"$HOME_CODEX"</span> ] &amp;&amp; [ ! -L <span class="string">"$HOME_CODEX"</span> ]; <span class="keyword">then</span>
+    echo <span class="string">"[i] Migrating existing ~/.codex to persistent storage..."</span>
+    cp -r <span class="string">"$HOME_CODEX/"</span>* <span class="string">"$PERSIST_DIR/"</span> 2&gt;/dev/null || true
+    rm -rf <span class="string">"$HOME_CODEX"</span>
+<span class="keyword">fi</span>
+
+[ -L <span class="string">"$HOME_CODEX"</span> ] &amp;&amp; [ ! -e <span class="string">"$HOME_CODEX"</span> ] &amp;&amp; rm -f <span class="string">"$HOME_CODEX"</span>
+
+<span class="keyword">if</span> [ ! -L <span class="string">"$HOME_CODEX"</span> ]; <span class="keyword">then</span>
+    ln -s <span class="string">"$PERSIST_DIR"</span> <span class="string">"$HOME_CODEX"</span>
+    echo <span class="string">"[ok] ~/.codex symlinked to $PERSIST_DIR"</span>
+<span class="keyword">else</span>
+    echo <span class="string">"[ok] ~/.codex persistence already configured"</span>
+<span class="keyword">fi</span>
+
+<span class="comment"># ── 4. Symlink skills from plugin ──</span>
 PLUGIN_DIR=<span class="string">"/mnt/imported/code/domino-data-lab-plugin"</span>
 mkdir -p /mnt/code/.agents/skills
 <span class="keyword">for</span> skill_dir <span class="keyword">in</span> <span class="string">"$PLUGIN_DIR"</span>/skills/*/; <span class="keyword">do</span>
@@ -130,7 +175,7 @@ mkdir -p /mnt/code/.agents/skills
 <span class="keyword">done</span>
 echo <span class="string">"[ok] Registered $(ls /mnt/code/.agents/skills/ 2&gt;/dev/null | wc -l) skills"</span>
 
-<span class="comment"># ── 3. Populate domino_project_settings.md from environment ──</span>
+<span class="comment"># ── 5. Populate domino_project_settings.md from environment ──</span>
 <span class="keyword">if</span> [ -f <span class="string">"/mnt/code/domino_project_settings.md"</span> ] &amp;&amp; \
    [ -n <span class="string">"$DOMINO_PROJECT_NAME"</span> ] &amp;&amp; [ -n <span class="string">"$DOMINO_USER_NAME"</span> ]; <span class="keyword">then</span>
     cat &gt; /mnt/code/domino_project_settings.md &lt;&lt; EOF
