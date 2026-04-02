@@ -24,10 +24,33 @@
   <h1>Kiro on Domino</h1>
   <p class="subtitle">Agent-specific configuration for Kiro</p>
 
-  <p><a href="https://kiro.dev/docs/">Kiro</a> is Amazon's AI IDE and CLI for agentic development. It connects to Domino through the same shared plugin and MCP server described on the <a href="index.html">Overview</a> page. This guide covers the Kiro-specific configuration files that wire everything together.</p>
+  <p>
+    <a href="https://kiro.dev">Kiro</a> is Amazon's agentic IDE for spec-driven development.
+    It connects to your local workspace or runs as a standalone CLI, and it can take actions
+    on your behalf: generating code from structured specifications, running workflows, managing
+    files, and interacting with external systems through MCP. Out of the box, it has no knowledge
+    of Domino, your internal tooling, or your domain. This page shows how to close that gap.
+  </p>
+
+  <p>
+    Kiro is available as a desktop IDE (download from <a href="https://kiro.dev">kiro.dev</a>)
+    and as a CLI (<code>curl -fsSL https://cli.kiro.dev/install | bash</code>). The IDE is
+    supported on macOS and Linux (AppImage and Ubuntu). The CLI is supported on macOS and Linux.
+  </p>
 
   <blockquote>
-    <p><strong>Two context systems.</strong> Kiro has both <strong>steering files</strong> (<code>.kiro/steering/*.md</code>) for always-on rules and <strong>Agent Skills</strong> (<code>.kiro/skills/</code>) for on-demand knowledge. Steering files control platform behavior; skills provide workflow-specific context loaded progressively.</p>
+    <p><strong>Note:</strong> The shared setup, the Domino plugin, common Dockerfile dependencies,
+    and the project template concept, is covered on the
+    <a href="index.html">Overview</a> page. This page focuses on the Kiro-specific configuration.</p>
+  </blockquote>
+
+  <blockquote>
+    <p><strong>Three context systems.</strong> Kiro has three distinct ways to provide context to
+    the agent: <strong>steering files</strong> (<code>.kiro/steering/*.md</code>) for persistent
+    project guidance with inclusion modes, <strong>Agent Skills</strong>
+    (<code>.kiro/skills/</code>) for on-demand workflow knowledge using the shared Agent Skills
+    standard, and <strong>AGENTS.md</strong> at the repository root, a standard format that is
+    always loaded with no inclusion modes. All three work together and serve different purposes.</p>
   </blockquote>
 
   <!-- ============================================================ -->
@@ -35,29 +58,97 @@
   <!-- ============================================================ -->
   <h2>Template Files</h2>
 
-  <p>The Kiro integration adds these files to the shared template:</p>
+  <p>The project template ships with these files that wire Kiro to the Domino platform:</p>
 
   <div class="file-tree">/mnt/code/
-&boxvr;&boxh;&boxh; AGENTS.md                          &larr; System prompt (Kiro reads this standard)
-&boxvr;&boxh;&boxh; domino_project_settings.md         &larr; Project name/user (shared)
-&boxur;&boxh;&boxh; .kiro/
-    &boxvr;&boxh;&boxh; steering/
-    &boxv;   &boxur;&boxh;&boxh; domino.md                  &larr; Domino platform rules (always loaded)
-    &boxvr;&boxh;&boxh; skills/                        &larr; Symlinked from Domino plugin
-    &boxur;&boxh;&boxh; settings/
-        &boxur;&boxh;&boxh; mcp.json                   &larr; MCP server config</div>
+├── AGENTS.md                          ← System prompt (always loaded, standard format)
+├── domino_project_settings.md         ← Project name/user (shared)
+└── .kiro/
+    ├── steering/
+    │   └── domino.md                  ← Domino platform rules (always loaded)
+    ├── skills/                        ← Symlinked from Domino plugin at workspace start
+    └── settings/
+        └── mcp.json                   ← MCP server config</div>
+
+  <table>
+    <thead>
+      <tr><th>File</th><th>Purpose</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>AGENTS.md</code></td>
+        <td>Read automatically at the start of every Kiro session. Follows the standard format also read by Claude Code and Codex, making it portable across agents. Always loaded, no inclusion modes.</td>
+      </tr>
+      <tr>
+        <td><code>.kiro/steering/domino.md</code></td>
+        <td>The primary steering file for Domino platform rules. Uses <code>inclusion: always</code> frontmatter to ensure it is loaded in every interaction. Tells Kiro what it is, what it can do, and how to behave on Domino.</td>
+      </tr>
+      <tr>
+        <td><code>.kiro/settings/mcp.json</code></td>
+        <td>Starts the Domino MCP server at workspace launch. Uses the <code>mcpServers</code> root key. Provides runtime tools like <code>run_domino_job</code>, <code>check_domino_job_run_status</code>, file sync utilities, and more.</td>
+      </tr>
+      <tr>
+        <td><code>domino_project_settings.md</code></td>
+        <td>Tells the MCP server which Domino project to operate against. Auto-populated at workspace start by the pre-run script using <code>$DOMINO_PROJECT_NAME</code> and <code>$DOMINO_USER_NAME</code>.</td>
+      </tr>
+    </tbody>
+  </table>
 
   <!-- ============================================================ -->
   <!-- ENVIRONMENT SETUP                                             -->
   <!-- ============================================================ -->
   <h2>Environment Setup</h2>
 
-  <p>Kiro is a desktop IDE, it does not need to be installed in the Domino environment. Only the MCP server dependencies are required (covered in the <a href="index.html">Overview</a> environment setup).</p>
+  <p>
+    Kiro is a desktop IDE. It does <strong>not</strong> need to be installed in the Domino
+    environment. Users run Kiro locally on their machine and connect to the Domino workspace
+    remotely. Only the MCP server dependencies are required in the environment (covered in the
+    <a href="index.html">Overview</a> environment setup).
+  </p>
 
-  <p>The Kiro CLI can optionally be installed in the environment for terminal-based use. See <a href="https://kiro.dev/cli/">Kiro CLI documentation</a> for installation instructions.</p>
+  <h3>Kiro CLI (Optional)</h3>
+  <p>
+    The Kiro CLI can optionally be installed in the Domino environment for terminal-based use
+    inside workspaces. This is useful for teams that prefer working in the terminal or need to
+    run Kiro in headless mode.
+  </p>
+
+  <pre><code><span class="comment"># Install Kiro CLI (optional, in pre-run script or Dockerfile)</span>
+curl -fsSL https://cli.kiro.dev/install | bash</code></pre>
+
+  <p>
+    The CLI provides interactive chat, custom agents, MCP integration, smart hooks, steering
+    file support, and auto-complete. Authentication is handled via
+    <a href="https://app.kiro.dev">https://app.kiro.dev</a>.
+  </p>
+
+  <h4>CLI commands</h4>
+  <table>
+    <thead>
+      <tr><th>Command / Shortcut</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>/load</code></td><td>Load a file or context into the session</td></tr>
+      <tr><td><code>/save</code></td><td>Save the current conversation</td></tr>
+      <tr><td><code>/prompts</code></td><td>List available prompts</td></tr>
+      <tr><td><code>/usage</code></td><td>Show usage statistics</td></tr>
+      <tr><td><code>/editor</code></td><td>Open the editor for multi-line input</td></tr>
+      <tr><td><code>/model</code></td><td>Switch the active model</td></tr>
+      <tr><td><code>/quit</code></td><td>Exit the CLI</td></tr>
+      <tr><td><code>!</code></td><td>Run a shell command</td></tr>
+      <tr><td><code>ctrl-j</code></td><td>Multi-line input mode</td></tr>
+      <tr><td><code>ctrl-k</code></td><td>Fuzzy search through history</td></tr>
+    </tbody>
+  </table>
+
+  <h3>MCP Server Dependencies</h3>
+  <p>The Domino MCP server requires these Python packages (install in the Dockerfile):</p>
+  <pre><code>RUN pip install --no-cache-dir fastmcp requests python-dotenv</code></pre>
 
   <blockquote>
-    <p><strong>No Dockerfile additions needed.</strong> The common Dockerfile base from the Overview page includes everything Kiro requires. No agent-specific packages are necessary.</p>
+    <p><strong>No additional Dockerfile changes needed.</strong> The common Dockerfile base from
+    the Overview page includes everything Kiro requires. No agent-specific packages are necessary
+    beyond what the shared environment already provides.</p>
   </blockquote>
 
   <!-- ============================================================ -->
@@ -65,22 +156,44 @@
   <!-- ============================================================ -->
   <h2>Pre-Run Script</h2>
 
-  <p>The pre-run script runs at workspace start. It symlinks the Domino plugin skills into <code>.kiro/skills/</code> and populates <code>domino_project_settings.md</code> from environment variables.</p>
+  <p>
+    The pre-run script runs automatically at every workspace start. It handles three things:
+    symlinking the Domino plugin skills into <code>.kiro/skills/</code>, populating
+    <code>domino_project_settings.md</code> from environment variables, and optionally
+    installing the Kiro CLI. Add this as the workspace pre-run script in your Domino
+    environment or project settings.
+  </p>
 
-<pre><code><span class="comment">#!/bin/bash</span>
+<pre><code><span class="comment">#!/bin/bash
+# start_workspace.sh: Domino pre-run script for Kiro
+# Handles plugin discovery, project settings, and optional CLI install.
+# Run once automatically at workspace start.</span>
+
 set -e
+
 echo <span class="string">"=== Kiro Workspace Setup ==="</span>
 
-<span class="comment"># Symlink skills from plugin</span>
+<span class="comment"># ── 1. (Optional) Install Kiro CLI if not present ──</span>
+<span class="comment"># Uncomment the following block to enable Kiro CLI in the workspace.</span>
+<span class="comment"># if ! command -v kiro &amp;&gt; /dev/null; then</span>
+<span class="comment">#     echo "[!] Kiro CLI not found. Installing..."</span>
+<span class="comment">#     curl -fsSL https://cli.kiro.dev/install | bash</span>
+<span class="comment">#     export PATH="$HOME/.local/bin:$PATH"</span>
+<span class="comment"># fi</span>
+<span class="comment"># echo "[ok] Kiro CLI version: $(kiro --version 2&gt;/dev/null || echo 'installed')"</span>
+
+<span class="comment"># ── 2. Register skills from the Domino plugin ──</span>
 PLUGIN_DIR=<span class="string">"/mnt/imported/code/domino-data-lab-plugin"</span>
+
 mkdir -p /mnt/code/.kiro/skills
 <span class="keyword">for</span> skill_dir <span class="keyword">in</span> <span class="string">"$PLUGIN_DIR"</span>/skills/*/; <span class="keyword">do</span>
     skill_name=$(basename <span class="string">"$skill_dir"</span>)
     ln -sf <span class="string">"$skill_dir"</span> <span class="string">"/mnt/code/.kiro/skills/$skill_name"</span> 2&gt;/dev/null || true
 <span class="keyword">done</span>
+
 echo <span class="string">"[ok] Registered $(ls /mnt/code/.kiro/skills/ 2&gt;/dev/null | wc -l) skills"</span>
 
-<span class="comment"># Populate domino_project_settings.md</span>
+<span class="comment"># ── 3. Populate domino_project_settings.md from environment ──</span>
 <span class="keyword">if</span> [ -f <span class="string">"/mnt/code/domino_project_settings.md"</span> ] &amp;&amp; \
    [ -n <span class="string">"$DOMINO_PROJECT_NAME"</span> ] &amp;&amp; [ -n <span class="string">"$DOMINO_USER_NAME"</span> ]; <span class="keyword">then</span>
     cat &gt; /mnt/code/domino_project_settings.md &lt;&lt; EOF
@@ -93,13 +206,24 @@ EOF
 
 echo <span class="string">"=== Kiro setup complete ==="</span></code></pre>
 
+  <h4>What the script handles</h4>
+  <ol>
+    <li><strong>Optional CLI install</strong>: if the commented block is enabled and <code>kiro</code> is not on the PATH, installs it via the official installer.</li>
+    <li><strong>Register skills</strong>: symlinks all skills from the Domino plugin into the project's <code>.kiro/skills/</code> directory so Kiro discovers them at session start.</li>
+    <li><strong>Populate project settings</strong>: writes <code>$DOMINO_PROJECT_NAME</code> and <code>$DOMINO_USER_NAME</code> into <code>domino_project_settings.md</code> so the MCP server knows which project to operate against.</li>
+  </ol>
+
   <!-- ============================================================ -->
   <!-- TEMPLATE FILE CONTENTS                                        -->
   <!-- ============================================================ -->
   <h2>Template File Contents</h2>
 
-  <h3><code>.kiro/settings/mcp.json</code></h3>
-  <p>Starts the Domino MCP server. Uses the <code>mcpServers</code> root key. Environment variables are injected automatically by Domino.</p>
+  <h3>.kiro/settings/mcp.json</h3>
+  <p>
+    Starts the Domino MCP server from the imported repo. Uses the <code>mcpServers</code> root
+    key. Environment variables are injected automatically by Domino. Kiro supports environment
+    variable expansion with the <code>${VARIABLE_NAME}</code> syntax.
+  </p>
 
 <pre><code>{
   <span class="string">"mcpServers"</span>: {
@@ -114,8 +238,48 @@ echo <span class="string">"=== Kiro setup complete ==="</span></code></pre>
   }
 }</code></pre>
 
-  <h3><code>.kiro/steering/domino.md</code></h3>
-  <p>The primary steering file for Domino platform rules. The <code>inclusion: always</code> frontmatter ensures it is loaded in every interaction.</p>
+  <h4>MCP configuration levels</h4>
+  <table>
+    <thead>
+      <tr><th>Level</th><th>Location</th><th>Scope</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Workspace</td>
+        <td><code>.kiro/settings/mcp.json</code></td>
+        <td>This project only. Committed to the repository.</td>
+      </tr>
+      <tr>
+        <td>User</td>
+        <td><code>~/.kiro/settings/mcp.json</code></td>
+        <td>All workspaces for the current user. Not committed.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>MCP server properties</h4>
+  <p>Each server entry in <code>mcpServers</code> supports these properties:</p>
+  <table>
+    <thead>
+      <tr><th>Property</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>command</code> + <code>args</code></td><td>Local server: the command and arguments to start the process.</td></tr>
+      <tr><td><code>url</code> + <code>headers</code></td><td>Remote server: the endpoint URL and optional HTTP headers.</td></tr>
+      <tr><td><code>env</code></td><td>Environment variables passed to the server. Supports <code>${VARIABLE_NAME}</code> expansion.</td></tr>
+      <tr><td><code>disabled</code></td><td>Boolean. Set to <code>true</code> to disable a server without removing its config.</td></tr>
+      <tr><td><code>autoApprove</code></td><td>Array of tool names that do not require user confirmation before execution.</td></tr>
+      <tr><td><code>disabledTools</code></td><td>Array of tool names to disable from this server.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>.kiro/steering/domino.md</h3>
+  <p>
+    The primary steering file for Domino platform rules. The <code>inclusion: always</code>
+    frontmatter ensures it is loaded in every interaction. This is the Kiro equivalent of
+    Claude Code's <code>CLAUDE.md</code>. Update it as your skills evolve and as the
+    agent's purpose changes.
+  </p>
 
 <pre><code>---
 inclusion: always
@@ -147,6 +311,80 @@ utilities, get_domino_environment_info, open_web_browser.
 <span class="comment">## Core Behavior</span>
 
 - For training or data extraction tasks, run commands as Domino jobs
+  rather than in the local terminal. This ensures governance,
+  reproducibility, and audit trails.
+- The Domino project name and user name are in
+  domino_project_settings.md. Read this file before making any MCP
+  tool calls.
+- When running a job, always check its status and results if completed,
+  and briefly explain any conclusions from the result of the job run.
+- If a job result includes an MLflow or experiment run URL, share that
+  URL with the user.
+
+<span class="comment">## Data Access</span>
+
+- Project data is accessible under /mnt/data/{PROJECT_NAME}/ (local
+  dataset) or /mnt/imported/data/ (shared/imported datasets).
+- Before using a dataset, run a job to list all folder contents
+  recursively to understand the full path to dataset files.
+- Always create scripts to understand and transform data via job runs.
+- Analytical outputs should be in plain text tabular format sent to
+  stdout for easy result checking.
+
+<span class="comment">## Git Discipline</span>
+
+- Always check for uncommitted changes before running Domino jobs.
+- Commit and push before running jobs (Domino uses remote repo state).
+
+<span class="comment">## App Development</span>
+
+- Bind to 0.0.0.0 (not localhost) for Domino apps.
+- Use base: './' in Vite config for React apps behind Domino proxy.
+- Create an app.sh as the launch file entry point.</code></pre>
+
+  <h3>AGENTS.md</h3>
+  <p>
+    Kiro also reads <code>AGENTS.md</code> at the repository root. This file follows the
+    standard format read by Claude Code and Codex, making it portable across all three agents.
+    It is always loaded with no inclusion modes. You can use it as a simpler fallback or as a
+    complement to the steering file. A typical approach: put the core Domino platform rules in
+    both <code>AGENTS.md</code> and <code>.kiro/steering/domino.md</code>, then use additional
+    steering files for Kiro-specific concerns like file-match patterns and auto-loaded context.
+  </p>
+
+<pre><code><span class="comment"># Project Instructions</span>
+
+You are a Domino Data Lab powered agentic tool that helps run tasks
+and workflows on the Domino Data Lab platform on behalf of the user
+using available tool functions provided by the domino_server MCP server.
+
+<span class="comment">## Domino Project Settings</span>
+
+Before making any MCP tool calls, read `domino_project_settings.md`
+to get the `project_name` and `user_name`. If they contain placeholder
+values, immediately update the file with the real values from
+environment variables:
+- Project name: `$DOMINO_PROJECT_NAME`
+- Username: `$DOMINO_USER_NAME`
+
+<span class="comment">## MCP Server</span>
+
+The `domino_server` MCP is configured in `.kiro/settings/mcp.json`
+and requires `DOMINO_API_KEY` and `DOMINO_HOST` environment variables.
+Available tools:
+- `run_domino_job`: run a script as a Domino job
+- `check_domino_job_run_status` / `check_domino_job_run_results`:
+  poll and retrieve job output
+- `list_domino_project_files`: browse project files
+- `sync_local_file_to_domino` / `smart_sync_file` /
+  `upload_file_to_domino_project` /
+  `download_file_from_domino_project`: file sync
+- `get_domino_environment_info`: inspect compute environments
+- `open_web_browser`: open Domino URLs
+
+<span class="comment">## Core Behavior</span>
+
+- For training or data extraction tasks, run commands as Domino jobs
   rather than in the local terminal.
 - When running a job, always check its status and results if completed.
 - If a job result includes an MLflow or experiment run URL, share it.
@@ -168,50 +406,170 @@ utilities, get_domino_environment_info, open_web_browser.
 - Use base: './' in Vite config for React apps behind Domino proxy.
 - Create an app.sh as the launch file entry point.</code></pre>
 
-  <h3><code>AGENTS.md</code></h3>
-  <p>Kiro also reads <code>AGENTS.md</code> at the repository root. This can contain the same content as the steering file or serve as a simpler fallback. It follows the same standard read by Claude Code and Codex, making it portable across agents.</p>
+  <h3>domino_project_settings.md</h3>
+  <p>Auto-populated at workspace start by the pre-run script. Users do not need to edit this file.</p>
+<pre><code><span class="comment"># Domino project settings to use with the MCP server domino_server</span>
+project_name=<span class="string">"$DOMINO_PROJECT_NAME"</span>
+user_name=<span class="string">"$DOMINO_USER_NAME"</span></code></pre>
 
   <!-- ============================================================ -->
-  <!-- STEERING INCLUSION MODES                                      -->
+  <!-- STEERING FILES (DEEP DIVE)                                    -->
   <!-- ============================================================ -->
-  <h2>Steering Inclusion Modes</h2>
+  <h2>Steering Files</h2>
 
-  <p>Kiro steering files use YAML frontmatter to control when they are loaded. The <code>inclusion</code> field determines the loading strategy.</p>
+  <p>
+    Steering files are Kiro's primary context system for persistent project guidance. They are
+    Markdown files with YAML frontmatter placed in <code>.kiro/steering/</code>. Unlike skills,
+    which load on demand, steering files can be configured to load automatically based on
+    different conditions. They control platform behavior, coding standards, compliance rules,
+    and anything else the agent should know about in every (or most) interactions.
+  </p>
 
+  <h3>Steering file locations</h3>
   <table>
     <thead>
-      <tr>
-        <th>Mode</th>
-        <th>Frontmatter</th>
-        <th>When loaded</th>
-      </tr>
+      <tr><th>Level</th><th>Location</th><th>Scope</th></tr>
     </thead>
     <tbody>
       <tr>
-        <td><strong>Always</strong></td>
+        <td>Workspace</td>
+        <td><code>.kiro/steering/</code></td>
+        <td>Project-specific. Committed to the repository. Takes priority over global.</td>
+      </tr>
+      <tr>
+        <td>Global</td>
+        <td><code>~/.kiro/steering/</code></td>
+        <td>All workspaces for the current user. Not committed.</td>
+      </tr>
+      <tr>
+        <td>Team</td>
+        <td><code>~/.kiro/steering/</code> (distributed via MDM)</td>
+        <td>Pushed to all team members' machines via mobile device management.</td>
+      </tr>
+    </tbody>
+  </table>
+  <p>
+    When a workspace steering file and a global steering file have the same name, the workspace
+    version takes priority. This allows teams to distribute default rules globally while letting
+    individual projects override them.
+  </p>
+
+  <h3>Inclusion modes</h3>
+  <p>
+    The <code>inclusion</code> field in the YAML frontmatter determines when a steering file
+    is loaded into the agent's context. There are four modes.
+  </p>
+
+  <table>
+    <thead>
+      <tr><th>Mode</th><th>Frontmatter</th><th>When loaded</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>always</strong></td>
         <td><code>inclusion: always</code></td>
-        <td>Every interaction</td>
+        <td>Every interaction. This is the default for foundation files. Use for platform rules, compliance, and anything the agent must always know.</td>
       </tr>
       <tr>
-        <td><strong>File Match</strong></td>
-        <td><code>inclusion: fileMatch</code> + <code>fileMatchPattern: "*.py"</code></td>
-        <td>When active files match the glob pattern</td>
+        <td><strong>fileMatch</strong></td>
+        <td><code>inclusion: fileMatch</code> + <code>fileMatchPattern</code></td>
+        <td>When the active file matches the glob pattern. Supports single patterns (<code>"**/*.py"</code>) and arrays (<code>["**/*.ts", "**/*.tsx"]</code>).</td>
       </tr>
       <tr>
-        <td><strong>Manual</strong></td>
+        <td><strong>manual</strong></td>
         <td><code>inclusion: manual</code></td>
-        <td>Only when explicitly referenced with <code>#steering-name</code></td>
+        <td>Only when explicitly referenced with <code>#steering-file-name</code> in chat or via <code>/</code> commands. Good for large reference documents.</td>
       </tr>
       <tr>
-        <td><strong>Auto</strong></td>
+        <td><strong>auto</strong></td>
         <td><code>inclusion: auto</code> + <code>name</code> + <code>description</code></td>
-        <td>Agent decides based on the description</td>
+        <td>The agent decides whether to load the file based on the description matching the current request. Requires both <code>name</code> and <code>description</code> fields.</td>
       </tr>
     </tbody>
   </table>
 
+  <h4>Example: always (platform rules)</h4>
+<pre><code>---
+inclusion: always
+---
+
+<span class="comment"># Domino Platform Rules</span>
+All interactions must follow these rules...
+</code></pre>
+
+  <h4>Example: fileMatch (Python-specific guidance)</h4>
+<pre><code>---
+inclusion: fileMatch
+fileMatchPattern: <span class="string">"**/*.py"</span>
+---
+
+<span class="comment"># Python Standards</span>
+When working with Python files, follow these conventions...
+</code></pre>
+
+  <h4>Example: fileMatch with multiple patterns</h4>
+<pre><code>---
+inclusion: fileMatch
+fileMatchPattern:
+  - <span class="string">"**/*.ts"</span>
+  - <span class="string">"**/*.tsx"</span>
+---
+
+<span class="comment"># TypeScript Standards</span>
+When working with TypeScript or TSX files...
+</code></pre>
+
+  <h4>Example: manual (large reference)</h4>
+<pre><code>---
+inclusion: manual
+---
+
+<span class="comment"># API Reference</span>
+This document is loaded on demand with #api-reference in chat...
+</code></pre>
+
+  <h4>Example: auto (context-dependent)</h4>
+<pre><code>---
+inclusion: auto
+name: deployment-checklist
+description: Pre-deployment validation checklist for production releases.
+---
+
+<span class="comment"># Deployment Checklist</span>
+The agent loads this when the request involves deployment...
+</code></pre>
+
+  <h3>Foundation steering files</h3>
+  <p>
+    Kiro supports three optional foundation steering files that are auto-generated and use
+    <code>inclusion: always</code> by default. They provide broader project context that
+    complements the Domino-specific <code>domino.md</code> file.
+  </p>
+
+  <table>
+    <thead>
+      <tr><th>File</th><th>Purpose</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>product.md</code></td><td>Product context: what the project does, who the users are, key workflows.</td></tr>
+      <tr><td><code>tech.md</code></td><td>Tech stack: languages, frameworks, key dependencies, architecture decisions.</td></tr>
+      <tr><td><code>structure.md</code></td><td>Project structure: directory layout, module boundaries, naming conventions.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>File references in steering files</h3>
+  <p>
+    Steering files can reference other project files using the
+    <code>#[[file:relative_path]]</code> syntax. This lets you point the agent to specific
+    configuration files, schemas, or examples without duplicating their content.
+  </p>
+<pre><code>See the MCP configuration at #[[file:.kiro/settings/mcp.json]]
+and the project settings at #[[file:domino_project_settings.md]]</code></pre>
+
   <blockquote>
-    <p><strong>Foundation steering files.</strong> Kiro supports optional foundation steering files for broader project context: <code>product.md</code> (product context), <code>tech.md</code> (tech stack), and <code>structure.md</code> (project structure). These complement the Domino-specific <code>domino.md</code> steering file.</p>
+    <p><strong>Security note.</strong> Never include API keys, tokens, or other secrets in steering
+    files. They are committed to the repository. Use environment variables and the MCP server's
+    <code>env</code> configuration instead.</p>
   </blockquote>
 
   <!-- ============================================================ -->
@@ -219,22 +577,65 @@ utilities, get_domino_environment_info, open_web_browser.
   <!-- ============================================================ -->
   <h2>Skills Format</h2>
 
-  <p>Kiro has <strong>two</strong> context systems that serve different purposes:</p>
+  <p>
+    Kiro supports <strong>Agent Skills</strong>, the same standard used by Claude Code and Codex.
+    This means skills are fully <strong>portable</strong> between all three agents with no changes
+    required. The Domino plugin ships 20 platform skills; your team adds domain-specific skills
+    alongside them.
+  </p>
 
+  <h3>Steering files vs. skills</h3>
+  <p>
+    Kiro has two context systems that serve different purposes. Choosing the right one matters
+    for performance and relevance.
+  </p>
+
+  <table>
+    <thead>
+      <tr><th>System</th><th>Location</th><th>Loading</th><th>Best for</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Steering files</strong></td>
+        <td><code>.kiro/steering/</code></td>
+        <td>Based on inclusion mode (always, fileMatch, manual, auto)</td>
+        <td>Platform behavior, coding standards, compliance rules that apply broadly.</td>
+      </tr>
+      <tr>
+        <td><strong>Agent Skills</strong></td>
+        <td><code>.kiro/skills/</code></td>
+        <td>Progressive: metadata at startup, full content on demand</td>
+        <td>Specific workflows, data access patterns, domain procedures relevant only sometimes.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Skill file locations</h3>
+  <table>
+    <thead>
+      <tr><th>Level</th><th>Location</th><th>Scope</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Workspace</td>
+        <td><code>.kiro/skills/&lt;skill-name&gt;/SKILL.md</code></td>
+        <td>This project only. Committed to the repository or symlinked from the plugin.</td>
+      </tr>
+      <tr>
+        <td>Global</td>
+        <td><code>~/.kiro/skills/&lt;skill-name&gt;/SKILL.md</code></td>
+        <td>All workspaces for the current user.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>How skills load</h3>
   <ul>
-    <li><strong>Steering files</strong> (<code>.kiro/steering/</code>), always-on rules and context. Best for platform behavior, coding standards, and compliance rules that apply to every interaction.</li>
-    <li><strong>Agent Skills</strong> (<code>.kiro/skills/</code>), on-demand workflow knowledge. Best for specific pipelines, data access patterns, and domain procedures that are only relevant sometimes.</li>
+    <li><strong>Progressive loading:</strong> Kiro reads the metadata (name and description from the YAML frontmatter) at startup and loads the full skill content only when the agent determines it is relevant to the current request.</li>
+    <li><strong>Explicit invocation:</strong> users can invoke any registered skill directly in chat by typing <code>/</code> to see available skills listed as slash commands, then selecting one.</li>
   </ul>
 
-  <p>Agent Skills follow the same <code>SKILL.md</code> standard used by Claude Code and Codex. This makes skills <strong>portable</strong> between these three agents with no changes required.</p>
-
-  <h4>How skills load</h4>
-  <ul>
-    <li>Skills are loaded <strong>progressively</strong>: Kiro reads the metadata (name, description) at startup and loads the full content only when relevant.</li>
-    <li>Skills can be invoked explicitly in chat with <code>/skill-name</code>.</li>
-  </ul>
-
-  <h4>Skill file anatomy</h4>
+  <h3>SKILL.md anatomy</h3>
 <pre><code>---
 name: etl-pipeline
 description: Run and monitor the nightly ETL pipeline on Domino.
@@ -254,7 +655,111 @@ Step-by-step for the most common task.
 <span class="comment">## Rules</span>
 - Data input/output paths
 - Naming conventions
-- Compliance constraints</code></pre>
+- Compliance constraints specific to this workflow
+
+<span class="comment">## Common errors and fixes</span>
+Known failure modes and how to resolve them.</code></pre>
+
+  <h4>Frontmatter fields</h4>
+  <table>
+    <thead>
+      <tr><th>Field</th><th>Required</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>name</code></td>
+        <td>Yes</td>
+        <td>Must match the folder name. Lowercase letters, numbers, and hyphens only. Maximum 64 characters.</td>
+      </tr>
+      <tr>
+        <td><code>description</code></td>
+        <td>Yes</td>
+        <td>What the skill covers and when the agent should use it. Maximum 1024 characters. Write it as a specific, action-oriented sentence.</td>
+      </tr>
+      <tr>
+        <td><code>license</code></td>
+        <td>No</td>
+        <td>SPDX license identifier for the skill.</td>
+      </tr>
+      <tr>
+        <td><code>compatibility</code></td>
+        <td>No</td>
+        <td>Compatibility metadata for cross-agent portability.</td>
+      </tr>
+      <tr>
+        <td><code>metadata</code></td>
+        <td>No</td>
+        <td>Additional key-value pairs for custom metadata.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>
+    The <code>description</code> field is what Kiro uses to decide when to load the skill.
+    A vague description means the skill may not load when needed. A good description is specific
+    and action-oriented: "Run and monitor the nightly ETL pipeline on Domino" is better than
+    "ETL stuff."
+  </p>
+
+  <!-- ============================================================ -->
+  <!-- HOOKS                                                         -->
+  <!-- ============================================================ -->
+  <h2>Hooks</h2>
+
+  <p>
+    Kiro supports event-driven automation through hooks. Hooks trigger on specific events and
+    run predefined actions without manual intervention. They are useful for automating repetitive
+    tasks like linting on save, pre-populating context, or running validation checks.
+  </p>
+
+  <h3>Supported event types</h3>
+  <table>
+    <thead>
+      <tr><th>Category</th><th>Events</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>File events</strong></td>
+        <td>File created, file saved, file deleted</td>
+      </tr>
+      <tr>
+        <td><strong>Prompt/Agent lifecycle</strong></td>
+        <td>Prompt submitted, response received, agent started, agent completed</td>
+      </tr>
+      <tr>
+        <td><strong>Spec task events</strong></td>
+        <td>Spec task started, spec task completed</td>
+      </tr>
+      <tr>
+        <td><strong>Manual triggers</strong></td>
+        <td>Triggered explicitly by the user through the UI or CLI</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>
+    Hooks complement steering files and skills: steering files define what the agent knows,
+    skills define what the agent can do, and hooks define what happens automatically in response
+    to events.
+  </p>
+
+  <!-- ============================================================ -->
+  <!-- SPECS                                                         -->
+  <!-- ============================================================ -->
+  <h2>Specs</h2>
+
+  <p>
+    Kiro's defining feature is spec-driven development. Specs are structured specifications that
+    let you plan and build features methodically rather than through ad-hoc prompting. A spec
+    breaks a feature into requirements, designs, tasks, and acceptance criteria before any code
+    is written.
+  </p>
+
+  <p>
+    Specs are particularly useful in Domino workflows where reproducibility and auditability
+    matter. By defining the full plan up front, you create a record of intent that complements
+    Domino's job execution logs and experiment tracking.
+  </p>
 
   <!-- ============================================================ -->
   <!-- COMPLETE TEMPLATE                                             -->
@@ -264,46 +769,155 @@ Step-by-step for the most common task.
   <p>Once the template is set up and the pre-run script has run, a fully built-out Kiro project looks like this:</p>
 
   <div class="file-tree">/mnt/code/
-&boxvr;&boxh;&boxh; AGENTS.md
-&boxvr;&boxh;&boxh; domino_project_settings.md
-&boxur;&boxh;&boxh; .kiro/
-    &boxvr;&boxh;&boxh; steering/
-    &boxv;   &boxvr;&boxh;&boxh; domino.md                  &larr; Platform rules (always)
-    &boxv;   &boxvr;&boxh;&boxh; product.md                 &larr; Product context (optional)
-    &boxv;   &boxur;&boxh;&boxh; tech.md                    &larr; Tech stack (optional)
-    &boxvr;&boxh;&boxh; skills/
-    &boxv;   &boxvr;&boxh;&boxh; [platform skills, symlinked]
-    &boxv;   &boxvr;&boxh;&boxh; etl-pipeline/SKILL.md
-    &boxv;   &boxur;&boxh;&boxh; compliance/SKILL.md
-    &boxur;&boxh;&boxh; settings/
-        &boxur;&boxh;&boxh; mcp.json</div>
+├── AGENTS.md                          ← System prompt (always loaded, portable)
+├── domino_project_settings.md         ← project_name and user_name
+└── .kiro/
+    ├── steering/
+    │   ├── domino.md                  ← Platform rules (always)
+    │   ├── product.md                 ← Product context (optional, always)
+    │   ├── tech.md                    ← Tech stack (optional, always)
+    │   ├── structure.md               ← Project structure (optional, always)
+    │   ├── python-standards.md        ← Python rules (fileMatch: **/*.py)
+    │   └── deployment.md              ← Deployment checklist (auto)
+    ├── skills/
+    │   ├── [domino platform skills, symlinked from plugin]
+    │   ├── etl-pipeline/SKILL.md      ← Your workflow
+    │   ├── data-sources/SKILL.md      ← Your data access patterns
+    │   ├── internal-apis/SKILL.md     ← Your proprietary tools and APIs
+    │   └── compliance/SKILL.md        ← Your governance and regulatory rules
+    └── settings/
+        └── mcp.json                   ← MCP server config</div>
+
+  <p>
+    The Domino plugin skills are symlinked from
+    <code>/mnt/imported/code/domino-data-lab-plugin</code> at workspace start. Your team's
+    domain-specific skills are committed directly to the project repository under
+    <code>.kiro/skills/</code>. Steering files are committed under
+    <code>.kiro/steering/</code>.
+  </p>
+
+  <!-- ============================================================ -->
+  <!-- BUILDING YOUR DOMAIN SKILLS                                   -->
+  <!-- ============================================================ -->
+  <h2>Building Your Domain Skills</h2>
+
+  <p>
+    Out of the box, the template gives Kiro knowledge of the Domino platform only. The domain
+    layer (your workflows, your data, your internal APIs) is empty. This is where your team's
+    work begins. The Domino plugin is the model: a git repository of Markdown skill files,
+    mounted as imported code and symlinked at workspace start. You follow the same pattern for
+    your domain.
+  </p>
+
+  <h3>Where to put skills</h3>
+  <p>There are two scopes:</p>
+
+  <ul>
+    <li><strong>Project-specific skills:</strong> add to <code>.kiro/skills/</code> in your project git repo. They persist as long as you commit and push; a skill added in a workspace without pushing is lost when the workspace stops.</li>
+    <li><strong>Org-wide skills:</strong> create a dedicated git repository (e.g. <code>example-kiro-skills</code>), attach it to the project template as Imported Code mounted at <code>/mnt/imported/code/example-kiro-skills</code>, and add one block to the pre-run script to symlink it alongside the Domino plugin:</li>
+  </ul>
+
+<pre><code><span class="comment"># In start_workspace.sh, add after the existing plugin symlink loop</span>
+SKILLS_DIR=<span class="string">"/mnt/imported/code/example-kiro-skills"</span>
+
+mkdir -p /mnt/code/.kiro/skills
+<span class="keyword">for</span> skill_dir <span class="keyword">in</span> <span class="string">"$SKILLS_DIR"</span>/skills/*/; <span class="keyword">do</span>
+    skill_name=$(basename <span class="string">"$skill_dir"</span>)
+    ln -sf <span class="string">"$skill_dir"</span> <span class="string">"/mnt/code/.kiro/skills/$skill_name"</span> 2&gt;/dev/null || true
+<span class="keyword">done</span></code></pre>
+
+  <p>
+    Every project that mounts this repo picks up your org skills automatically on workspace
+    start, the same pattern as the Domino plugin. Update the repo once; every project sees it.
+  </p>
+
+  <h3>Where to put steering files</h3>
+  <p>There are also two scopes for steering files:</p>
+  <ul>
+    <li><strong>Project-specific:</strong> add to <code>.kiro/steering/</code> in your project. Committed to the repository.</li>
+    <li><strong>Global/team:</strong> place in <code>~/.kiro/steering/</code> on each team member's machine. Distribute via MDM for consistent team-wide rules. Workspace files override global files with the same name.</li>
+  </ul>
 
   <!-- ============================================================ -->
   <!-- EXTENDING                                                     -->
   <!-- ============================================================ -->
   <h2>Extending</h2>
 
-  <h3>Custom MCP servers</h3>
-  <p>Add additional MCP servers to <code>.kiro/settings/mcp.json</code> alongside the Domino server. The format is the same, add another entry under <code>mcpServers</code>.</p>
+  <h3>Custom MCP Servers</h3>
+  <p>
+    Write a custom MCP server when you need Kiro to take actions against an internal system at
+    runtime: querying a proprietary database, submitting to an internal API, fetching from a data
+    catalog. Register it by adding an entry to the <code>mcpServers</code> key in
+    <code>.kiro/settings/mcp.json</code> alongside the Domino server:
+  </p>
 
-  <h3>Agent hooks</h3>
-  <p>Kiro supports event-driven agent hooks that trigger on specific events: file saved, prompt submitted, response received, and more. Use hooks to automate repetitive tasks like linting on save or pre-populating context.</p>
+<pre><code>{
+  <span class="string">"mcpServers"</span>: {
+    <span class="string">"domino_server"</span>: { ... },
+    <span class="string">"your_server"</span>: {
+      <span class="string">"command"</span>: <span class="string">"python"</span>,
+      <span class="string">"args"</span>: [<span class="string">".kiro/mcp-servers/your_server/your_server.py"</span>]
+    }
+  }
+}</code></pre>
 
-  <h3>Explicit skill invocation</h3>
-  <p>Invoke any registered skill directly in chat with <code>/skill-name</code>. This is useful for triggering a specific workflow without waiting for Kiro to auto-detect relevance.</p>
+  <p>
+    Kiro also supports remote MCP servers. Use the <code>url</code> and <code>headers</code>
+    properties instead of <code>command</code> and <code>args</code>:
+  </p>
+
+<pre><code>{
+  <span class="string">"mcpServers"</span>: {
+    <span class="string">"remote_server"</span>: {
+      <span class="string">"url"</span>: <span class="string">"https://mcp.internal.example.com/sse"</span>,
+      <span class="string">"headers"</span>: {
+        <span class="string">"Authorization"</span>: <span class="string">"Bearer ${INTERNAL_API_TOKEN}"</span>
+      }
+    }
+  }
+}</code></pre>
+
+  <h3>Agent Hooks</h3>
+  <p>
+    Use hooks to automate repetitive tasks tied to events. Examples: lint files on save, validate
+    configuration when a YAML file is created, run a pre-commit check before the agent completes
+    a task. Hooks reduce manual steps and enforce consistency across the team.
+  </p>
+
+  <h3>Explicit Skill Invocation</h3>
+  <p>
+    Invoke any registered skill directly in chat with <code>/skill-name</code>. This is useful
+    for triggering a specific workflow without waiting for Kiro to auto-detect relevance. Type
+    <code>/</code> in the chat to see the full list of available skills as slash commands.
+  </p>
+
+  <h3>Steering File References</h3>
+  <p>
+    Reference steering files manually in chat with <code>#steering-file-name</code>. This loads
+    a <code>manual</code> inclusion steering file on demand. Useful for pulling in large
+    reference documents only when needed.
+  </p>
 
   <!-- ============================================================ -->
   <!-- VERIFICATION                                                  -->
   <!-- ============================================================ -->
   <h2>Verification</h2>
 
-  <p>Open the project in Kiro and ask:</p>
+  <p>To verify the setup is working:</p>
+  <ol>
+    <li>Create a new project from the template.</li>
+    <li>Start a Domino workspace.</li>
+    <li>Open the project in Kiro (IDE) or run <code>kiro</code> in the terminal (CLI).</li>
+    <li>Ask: <strong>"What Domino skills do you have?"</strong></li>
+  </ol>
 
-  <blockquote>
-    <p>"What Domino skills do you have?"</p>
-  </blockquote>
-
-  <p>Kiro should respond with the Domino platform skills from the plugin. If it does, the template is working correctly. When team members create new projects from the template, <code>domino_project_settings.md</code> is populated automatically at workspace start, they only need to add their domain skills to <code>.kiro/skills/</code> and steering files to <code>.kiro/steering/</code>.</p>
+  <p>
+    Kiro should respond with the Domino platform skills from the plugin. If it does, the
+    template is working correctly. When team members create new projects from the template,
+    <code>domino_project_settings.md</code> is populated automatically at workspace start.
+    They only need to add their domain skills to <code>.kiro/skills/</code> and steering
+    files to <code>.kiro/steering/</code>.
+  </p>
 
   <!-- ============================================================ -->
   <!-- RESOURCES                                                     -->
@@ -312,10 +926,10 @@ Step-by-step for the most common task.
 
   <ul>
     <li><a href="https://kiro.dev/docs/">Official Kiro documentation</a></li>
-    <li><a href="https://kiro.dev/docs/steering/">Steering guide</a></li>
-    <li><a href="https://kiro.dev/docs/skills/">Agent Skills</a></li>
-    <li><a href="https://kiro.dev/docs/mcp/configuration/">MCP configuration</a></li>
-    <li><a href="https://kiro.dev/cli/">Kiro CLI</a></li>
+    <li><a href="https://kiro.dev/docs/steering/">Steering files guide</a></li>
+    <li><a href="https://kiro.dev/docs/skills/">Agent Skills guide</a></li>
+    <li><a href="https://kiro.dev/docs/mcp/configuration/">MCP configuration guide</a></li>
+    <li><a href="https://kiro.dev/cli/">Kiro CLI documentation</a></li>
     <li><a href="https://github.com/dominodatalab/domino-claude-plugin">Domino plugin repository</a></li>
   </ul>
 

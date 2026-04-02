@@ -24,43 +24,225 @@
   <h1>Cursor on Domino</h1>
   <p class="subtitle">Agent-specific configuration for Cursor</p>
 
-  <p><a href="https://cursor.com/docs">Cursor</a> is an AI code editor built as a fork of VS Code. It is an IDE-based agent, it runs on the user's machine and connects to a Domino workspace remotely. It does <strong>not</strong> need to be installed in the Domino environment.</p>
+  <p>
+    <a href="https://cursor.com">Cursor</a> is an AI code editor built as a fork of VS Code. It is a standalone
+    desktop IDE (it does not require a separate VS Code installation) that runs on the user's local machine and
+    connects to a Domino workspace remotely. Cursor can take actions on your behalf: running workflows, querying
+    systems, analyzing data, and generating outputs. Out of the box, it has no knowledge of Domino, your internal
+    tooling, or your domain. This page shows how to close that gap.
+  </p>
 
-  <p>This page covers the Cursor-specific template files. For shared infrastructure (the Domino plugin, environment setup, MCP server dependencies, building domain skills, and custom MCP servers), see the <a href="index.html">Overview</a>.</p>
+  <blockquote>
+    <p><strong>Note:</strong> The shared setup, the Domino plugin, common Dockerfile dependencies, and the project
+    template concept, is covered on the <a href="index.html">Overview</a> page. This page focuses on the
+    Cursor-specific configuration.</p>
+  </blockquote>
 
   <!-- ============================================================ -->
-  <!-- TEMPLATE FILES                                                -->
+  <!-- PART 1: HOW IT FITS TOGETHER                                  -->
   <!-- ============================================================ -->
-  <h2>Template Files</h2>
+  <h2>Part 1: How It Fits Together</h2>
 
-  <p>A Cursor-ready Domino project requires these files in the project git repository:</p>
+  <p>
+    Cursor connects to Domino through two mechanisms: <strong>rules</strong> that tell the AI how to behave on
+    the platform, and an <strong>MCP server</strong> that gives it runtime tools to take actions (run jobs, sync
+    files, check results). Both are stored in the project's <code>.cursor/</code> directory and committed to Git
+    so every team member gets the same setup.
+  </p>
+
+  <p>The template ships with three files:</p>
 
   <div class="file-tree">/mnt/code/
-&boxvr;&boxh;&boxh; domino_project_settings.md         &larr; Project name/user (shared)
-&boxur;&boxh;&boxh; .cursor/
-    &boxvr;&boxh;&boxh; rules/
-    &boxdr;   &boxur;&boxh;&boxh; domino.mdc                 &larr; Domino platform rules (always applied)
-    &boxur;&boxh;&boxh; mcp.json                       &larr; MCP server config</div>
+├── domino_project_settings.md         ← Project name/user (shared across agents)
+└── .cursor/
+    ├── mcp.json                       ← Starts the Domino MCP server
+    └── rules/
+        └── domino.mdc                 ← Domino platform rules (always applied)</div>
+
+  <table>
+    <thead>
+      <tr><th>File</th><th>Purpose</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>.cursor/rules/domino.mdc</code></td>
+        <td>The equivalent of Claude Code's <code>CLAUDE.md</code>. Read at the start of every Cursor session when <code>alwaysApply: true</code> is set. Tells the AI what it is, what it can do, and how to behave on Domino.</td>
+      </tr>
+      <tr>
+        <td><code>.cursor/mcp.json</code></td>
+        <td>Starts the Domino MCP server when Cursor connects. Provides runtime tools like <code>run_domino_job</code>, <code>check_domino_job_run_status</code>, file sync utilities, and more.</td>
+      </tr>
+      <tr>
+        <td><code>domino_project_settings.md</code></td>
+        <td>Tells the MCP server which Domino project to operate against. Auto-populated at workspace start by the pre-run script. Shared with all other agents.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>
+    Unlike Claude Code, Cursor does <strong>not</strong> use a plugin system with symlinked skills, commands, or
+    agents. Instead, all Domino platform knowledge goes directly into rule files under <code>.cursor/rules/</code>.
+    Domain knowledge is added as additional rule files in the same directory.
+  </p>
 
   <!-- ============================================================ -->
-  <!-- ENVIRONMENT SETUP                                             -->
+  <!-- PART 2: ABOUT CURSOR                                          -->
   <!-- ============================================================ -->
-  <h2>Environment Setup</h2>
+  <h2>Part 2: About Cursor</h2>
 
-  <p>Cursor is a desktop IDE, <strong>no install is needed in the Domino environment</strong>. Users install Cursor on their own machine and connect to the Domino workspace. The only environment requirement is the MCP server dependencies (<code>fastmcp</code>, <code>requests</code>, <code>python-dotenv</code>), which are covered in the common Dockerfile base on the <a href="index.html">Overview</a> page.</p>
+  <h3>What It Is</h3>
+  <p>
+    Cursor is a standalone AI code editor forked from Visual Studio Code. It runs natively on Windows, macOS, and
+    Linux. Download it from <a href="https://cursor.com">cursor.com</a>. System requirements: 4 GB or more of RAM
+    and a stable internet connection. It does <strong>not</strong> need to be installed in the Domino environment;
+    it runs entirely on the user's machine and connects to Domino workspaces via SSH or the Domino proxy.
+  </p>
+
+  <h3>System Prompt</h3>
+  <p>
+    Cursor reads its system prompt from rules stored in the <code>.cursor/rules/</code> directory at the project
+    root. There are two supported file formats:
+  </p>
+  <ul>
+    <li><strong>Current format (v2.2 and later):</strong> Folder-based rules. Each rule is a directory under <code>.cursor/rules/</code> containing a <code>RULE.md</code> file, with optional <code>scripts/</code> and <code>templates/</code> subdirectories.</li>
+    <li><strong>Legacy format:</strong> Single <code>.mdc</code> files in <code>.cursor/rules/</code>. Still fully functional and widely used.</li>
+    <li><strong>Deprecated:</strong> A <code>.cursorrules</code> file at the project root. Still recognized but superseded by the rules directory.</li>
+  </ul>
+  <p>Cursor also supports <code>AGENTS.md</code> at the project root (with nested subdirectory support), providing partial compatibility with the emerging agent configuration standard.</p>
+
+  <h3>Rule Frontmatter</h3>
+  <p>
+    Each rule file begins with YAML frontmatter that controls when and how the rule is loaded. The available
+    fields are:
+  </p>
+  <table>
+    <thead>
+      <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>description</code></td>
+        <td>string</td>
+        <td>Explains what the rule covers. Used by the AI to decide whether to load "Agent Requested" rules.</td>
+      </tr>
+      <tr>
+        <td><code>globs</code></td>
+        <td>file patterns</td>
+        <td>Glob patterns (e.g., <code>"*.py"</code>, <code>["*.ts", "*.tsx"]</code>) that trigger auto-attachment when matching files are referenced.</td>
+      </tr>
+      <tr>
+        <td><code>alwaysApply</code></td>
+        <td>boolean</td>
+        <td>When <code>true</code>, the rule is injected into every conversation regardless of context.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Rule Types</h3>
+  <p>
+    The combination of frontmatter fields determines the rule type. There are four types, and each controls
+    when the rule is loaded into the conversation:
+  </p>
+
+  <table>
+    <thead>
+      <tr><th>Type</th><th>Frontmatter</th><th>When Loaded</th><th>Use Case</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Always Apply</strong></td>
+        <td><code>alwaysApply: true</code></td>
+        <td>Every conversation, unconditionally</td>
+        <td>Domino platform rules, coding standards, compliance requirements</td>
+      </tr>
+      <tr>
+        <td><strong>Auto Attached</strong></td>
+        <td><code>globs: ["*.py"]</code></td>
+        <td>When referenced files match the glob pattern</td>
+        <td>Language-specific conventions, framework rules (e.g., apply React rules only when editing .tsx files)</td>
+      </tr>
+      <tr>
+        <td><strong>Agent Requested</strong></td>
+        <td><code>description: "..."</code> only (no globs, no alwaysApply)</td>
+        <td>AI evaluates the description and decides if the rule is relevant to the current task</td>
+        <td>Domain-specific workflows, pipeline instructions, API integration guides</td>
+      </tr>
+      <tr>
+        <td><strong>Manual</strong></td>
+        <td>All fields empty or absent</td>
+        <td>Only when the user explicitly types <code>@rule-name</code></td>
+        <td>Rarely used templates, one-off procedures</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <blockquote>
+    <p><strong>Important:</strong> Injection does not guarantee activation. A rule can be injected into the
+    conversation context, but the AI may still choose not to follow it if it deems the rule irrelevant to
+    the current task. Rules are suggestions, not hard enforcement. Effectiveness can also vary by model.</p>
+  </blockquote>
+
+  <h3>Rule Precedence</h3>
+  <p>Cursor supports three scopes of rules. When rules conflict, higher-precedence scopes win:</p>
+  <ol>
+    <li><strong>Team Rules</strong> (highest): Configured via the Cursor dashboard. Available on Team and Enterprise plans. Can be enforced organization-wide.</li>
+    <li><strong>Project Rules</strong>: Files in <code>.cursor/rules/</code>, version-controlled with the project. This is where Domino platform rules live.</li>
+    <li><strong>User Rules</strong> (lowest): Global preferences set in Cursor Settings. Apply across all projects for that user.</li>
+  </ol>
+
+  <h3>MCP Support</h3>
+  <p>
+    Cursor supports the Model Context Protocol (MCP) via <code>.cursor/mcp.json</code>. The format uses a
+    <code>mcpServers</code> root key, identical to Claude Code's <code>.mcp.json</code>. MCP servers provide
+    runtime tools that the AI can call during a conversation.
+  </p>
+
+  <h3>Gotchas</h3>
+  <ul>
+    <li>The built-in UI for editing rules can be buggy. Use an external text editor for reliability.</li>
+    <li>Rules are suggestions, not enforcement. The AI may ignore a rule if it determines the rule is not relevant.</li>
+    <li>Rule effectiveness varies by model. Test with the model your team actually uses.</li>
+    <li>Cursor does not have a native plugin or slash-command system like Claude Code. Reusable workflows are implemented as Agent Requested rules instead.</li>
+  </ul>
 
   <!-- ============================================================ -->
-  <!-- PRE-RUN SCRIPT                                                -->
+  <!-- PART 3: ENVIRONMENT AND PRE-RUN SETUP                         -->
   <!-- ============================================================ -->
-  <h2>Pre-Run Script</h2>
+  <h2>Part 3: Environment and Pre-Run Setup</h2>
 
-  <p>Since Cursor does not need to be installed in the environment and has no plugin symlinks to wire up, the pre-run script only needs to populate <code>domino_project_settings.md</code>:</p>
+  <h3>Environment Setup</h3>
+  <p>
+    Cursor is a desktop IDE. <strong>No install is needed in the Domino environment.</strong> Users install
+    Cursor on their own machine and connect to the Domino workspace. The only environment requirement is the
+    MCP server dependencies (<code>fastmcp</code>, <code>requests</code>, <code>python-dotenv</code>), which
+    are covered in the common Dockerfile base on the <a href="index.html">Overview</a> page:
+  </p>
 
-<pre><code><span class="comment">#!/bin/bash</span>
+  <pre><code><span class="comment"># MCP server dependencies (required)</span>
+RUN pip install --no-cache-dir fastmcp requests python-dotenv</code></pre>
+
+  <p>
+    No Claude Code installation, no directory creation, no persistent storage setup. The Domino environment
+    only needs to serve as the execution backend for MCP tool calls.
+  </p>
+
+  <h3>Pre-Run Script</h3>
+  <p>
+    Since Cursor does not need to be installed in the environment and has no plugin symlinks to wire up, the
+    pre-run script only needs to populate <code>domino_project_settings.md</code> from environment variables.
+    This is significantly simpler than the Claude Code pre-run script:
+  </p>
+
+  <pre><code><span class="comment">#!/bin/bash
+# start_workspace.sh: Domino pre-run script for Cursor
+# Populates project settings from Domino environment variables.
+# Run once automatically at workspace start.</span>
+
 set -e
+
 echo <span class="string">"=== Cursor Workspace Setup ==="</span>
 
-<span class="comment"># Populate domino_project_settings.md</span>
+<span class="comment"># Populate domino_project_settings.md from environment</span>
 <span class="keyword">if</span> [ -f <span class="string">"/mnt/code/domino_project_settings.md"</span> ] &amp;&amp; \
    [ -n <span class="string">"$DOMINO_PROJECT_NAME"</span> ] &amp;&amp; [ -n <span class="string">"$DOMINO_USER_NAME"</span> ]; <span class="keyword">then</span>
     cat &gt; /mnt/code/domino_project_settings.md &lt;&lt; EOF
@@ -73,15 +255,36 @@ EOF
 
 echo <span class="string">"=== Cursor setup complete ==="</span></code></pre>
 
+  <h4>What the script handles</h4>
+  <ol>
+    <li><strong>Populate project settings</strong>: writes <code>$DOMINO_PROJECT_NAME</code> and <code>$DOMINO_USER_NAME</code> into <code>domino_project_settings.md</code> so the MCP server knows which project to operate against.</li>
+  </ol>
+
+  <p>
+    Compare this with the Claude Code pre-run script, which handles seven steps (installation, persistent storage,
+    authentication, preference persistence, plugin registration, and settings population). Cursor's simplicity
+    here is a direct benefit of being a desktop application with no server-side agent to install or configure.
+  </p>
+
   <!-- ============================================================ -->
-  <!-- TEMPLATE FILE CONTENTS                                        -->
+  <!-- PART 4: TEMPLATE FILE CONTENTS                                -->
   <!-- ============================================================ -->
-  <h2>Template File Contents</h2>
+  <h2>Part 4: Template File Contents</h2>
+
+  <p>
+    This section shows the exact contents of each template file. Create these in a Git repository and register
+    that repository as a Domino project template (see the <a href="index.html">Overview</a> page for the full
+    template registration walkthrough).
+  </p>
 
   <h3><code>.cursor/mcp.json</code></h3>
-  <p>Starts the Domino MCP server from the imported repo. Environment variables are injected automatically by Domino:</p>
+  <p>
+    Starts the Domino MCP server from the imported plugin repo. The format uses a <code>mcpServers</code>
+    root key, identical to Claude Code's <code>.mcp.json</code>. Environment variables are injected
+    automatically by Domino:
+  </p>
 
-<pre><code>{
+  <pre><code>{
   <span class="string">"mcpServers"</span>: {
     <span class="string">"domino_server"</span>: {
       <span class="string">"command"</span>: <span class="string">"python"</span>,
@@ -95,9 +298,12 @@ echo <span class="string">"=== Cursor setup complete ==="</span></code></pre>
 }</code></pre>
 
   <h3><code>.cursor/rules/domino.mdc</code></h3>
-  <p>Domino platform rules as a Cursor rule file. This is the equivalent of <code>CLAUDE.md</code> for Claude Code. The <code>alwaysApply: true</code> frontmatter ensures it is loaded in every conversation:</p>
+  <p>
+    Domino platform rules as a Cursor rule file. This is the equivalent of <code>CLAUDE.md</code> for Claude
+    Code. The <code>alwaysApply: true</code> frontmatter ensures it is injected into every conversation:
+  </p>
 
-<pre><code>---
+  <pre><code>---
 description: Domino Data Lab platform rules for running jobs, accessing data, and deploying apps.
 alwaysApply: <span class="keyword">true</span>
 ---
@@ -154,111 +360,314 @@ The `domino_server` MCP is configured in `.cursor/mcp.json`. Available tools:
 - Use base: './' in Vite config for React apps behind Domino's proxy.
 - Create an app.sh as the launch file entry point.</code></pre>
 
-  <!-- ============================================================ -->
-  <!-- CURSOR RULE TYPES                                             -->
-  <!-- ============================================================ -->
-  <h2>Cursor Rule Types</h2>
+  <h3><code>domino_project_settings.md</code></h3>
+  <p>Auto-populated at workspace start by the pre-run script. Users do not need to edit this file.</p>
 
-  <p>Cursor supports four types of rules, controlled by YAML frontmatter in <code>.mdc</code> files. Each type determines when and how the rule is loaded:</p>
+  <pre><code><span class="comment"># Domino project settings to use with the MCP server domino_server</span>
+project_name=<span class="string">"$DOMINO_PROJECT_NAME"</span>
+user_name=<span class="string">"$DOMINO_USER_NAME"</span></code></pre>
 
+  <!-- ============================================================ -->
+  <!-- PART 5: CURSOR RULE TYPES IN DEPTH                            -->
+  <!-- ============================================================ -->
+  <h2>Part 5: Cursor Rule Types in Depth</h2>
+
+  <p>
+    Rules are Cursor's primary mechanism for customizing AI behavior. Understanding the four types and when
+    to use each is essential for building an effective Domino integration.
+  </p>
+
+  <h3>Always Apply Rules</h3>
+  <p>Set <code>alwaysApply: true</code> in the frontmatter. These rules are injected into every conversation, every time. Use for:</p>
+  <ul>
+    <li>Domino platform rules (the <code>domino.mdc</code> file above)</li>
+    <li>Organization-wide coding standards</li>
+    <li>Compliance and security constraints that must never be skipped</li>
+  </ul>
+
+  <pre><code>---
+description: Always-on Domino platform integration.
+alwaysApply: <span class="keyword">true</span>
+---
+
+<span class="comment"># Your always-applied content here</span></code></pre>
+
+  <h3>Auto Attached Rules (Glob-Based)</h3>
+  <p>Set <code>globs</code> to a file pattern or array of patterns. The rule is automatically injected when the user references a file matching the pattern.</p>
+
+  <pre><code>---
+description: Python-specific Domino conventions for data scripts.
+globs: <span class="string">"*.py"</span>
+---
+
+<span class="comment"># Python Conventions</span>
+- Use pathlib for file paths under /mnt/data/
+- Always include error handling for MCP tool calls
+- Log outputs to stdout in tabular format</code></pre>
+
+  <p>You can also use an array of patterns:</p>
+  <pre><code>globs: [<span class="string">"*.ts"</span>, <span class="string">"*.tsx"</span>, <span class="string">"*.jsx"</span>]</code></pre>
+
+  <h3>Agent Requested Rules</h3>
+  <p>Set only <code>description</code> (no globs, no alwaysApply). The AI reads the description and decides whether the rule is relevant to the current task. This is the closest equivalent to Claude Code's skills.</p>
+
+  <pre><code>---
+description: ETL pipeline workflows for data ingestion and transformation using Domino Jobs.
+---
+
+<span class="comment"># ETL Pipeline</span>
+
+<span class="comment">## Overview</span>
+Covers the standard data ingestion pipeline...
+
+<span class="comment">## How to run</span>
+1. Create a Python script in /mnt/code/scripts/
+2. Use run_domino_job to execute it
+3. Check results with check_domino_job_run_results</code></pre>
+
+  <h3>Manual Rules</h3>
+  <p>Leave all frontmatter fields empty or absent. The rule is only loaded when the user explicitly types <code>@rule-name</code> in the chat.</p>
+
+  <pre><code>---
+---
+
+<span class="comment"># Deployment Checklist</span>
+Run through this checklist before deploying to production:
+1. All tests pass
+2. Model metrics meet threshold
+3. Governance bundle is approved</code></pre>
+
+  <h3>Choosing the Right Type</h3>
   <table>
     <thead>
-      <tr>
-        <th>Type</th>
-        <th>Frontmatter</th>
-        <th>When loaded</th>
-      </tr>
+      <tr><th>Scenario</th><th>Recommended Type</th><th>Reasoning</th></tr>
     </thead>
     <tbody>
       <tr>
-        <td><strong>Always</strong></td>
-        <td><code>alwaysApply: true</code></td>
-        <td>Every conversation</td>
+        <td>Domino platform behavior</td>
+        <td>Always Apply</td>
+        <td>Must be present in every conversation to ensure jobs run correctly, data paths are correct, and Git discipline is followed.</td>
       </tr>
       <tr>
-        <td><strong>Auto Attached</strong></td>
-        <td><code>globs: "*.py"</code></td>
-        <td>When referenced files match the glob pattern</td>
+        <td>Python data scripts</td>
+        <td>Auto Attached (<code>*.py</code>)</td>
+        <td>Only relevant when editing Python files. No need to load when working with configuration or documentation.</td>
       </tr>
       <tr>
-        <td><strong>Agent Requested</strong></td>
-        <td><code>description: "..."</code> (no globs, no alwaysApply)</td>
-        <td>Agent decides based on description</td>
+        <td>ETL pipeline instructions</td>
+        <td>Agent Requested</td>
+        <td>Only relevant when the user is working on data ingestion tasks. The AI evaluates the description and loads it when appropriate.</td>
       </tr>
       <tr>
-        <td><strong>Manual</strong></td>
-        <td>(none of the above)</td>
-        <td>Only when user types <code>@ruleName</code></td>
+        <td>One-off deployment checklist</td>
+        <td>Manual</td>
+        <td>Rarely needed. User explicitly invokes it with <code>@deployment-checklist</code>.</td>
       </tr>
     </tbody>
   </table>
 
-  <blockquote>
-    <p><strong>Recommendation:</strong> Use <strong>Always</strong> for Domino platform rules (they apply to every interaction). Use <strong>Agent Requested</strong> or <strong>Auto Attached</strong> for domain skills that are only relevant in specific contexts.</p>
-  </blockquote>
-
   <!-- ============================================================ -->
-  <!-- SKILLS FORMAT                                                 -->
+  <!-- PART 6: SKILLS FORMAT AND CONVERSION                          -->
   <!-- ============================================================ -->
-  <h2>Skills Format</h2>
+  <h2>Part 6: Building Domain Skills</h2>
 
-  <p>Cursor does <strong>not</strong> use the open Agent Skills standard (<code>SKILL.md</code>). Instead, each skill is a <code>.mdc</code> file in <code>.cursor/rules/</code> with YAML frontmatter.</p>
+  <p>
+    Out of the box, the template gives Cursor knowledge of the Domino platform only. The domain layer
+    (your workflows, your data, your internal APIs) is empty. This is where your team's work begins.
+  </p>
 
-  <h3>Converting from Agent Skills to <code>.mdc</code></h3>
+  <h3>Where to Put Skills</h3>
+  <p>
+    All Cursor rules live in <code>.cursor/rules/</code> within the project repository. Unlike Claude Code,
+    there is no separate plugin directory or symlink mechanism. You have two options for organizing domain rules:
+  </p>
+  <ul>
+    <li><strong>Project-specific rules:</strong> Add <code>.mdc</code> files (or <code>RULE.md</code> folders) directly to <code>.cursor/rules/</code> in your project repo. Commit and push to persist them.</li>
+    <li><strong>Org-wide rules:</strong> Maintain a shared Git repository of rule files and copy them into project templates. Alternatively, use Cursor's Team Rules feature (available on Team and Enterprise plans) to enforce rules across all team members.</li>
+  </ul>
 
-  <p>If you have existing skills in the Agent Skills format (used by Claude Code, Codex, and Kiro), convert them as follows:</p>
+  <h3>Anatomy of a Cursor Rule</h3>
+  <p>
+    Cursor does <strong>not</strong> use the open Agent Skills standard (<code>SKILL.md</code>). Instead,
+    each skill is either a <code>.mdc</code> file in <code>.cursor/rules/</code> or a folder with a
+    <code>RULE.md</code> file. The Markdown body is the same; only the frontmatter differs.
+  </p>
 
-  <h4>Agent Skills format (<code>SKILL.md</code>)</h4>
-<pre><code>---
+  <pre><code>---
+description: What this rule covers and when the AI should use it.
+alwaysApply: <span class="keyword">false</span>
+---
+
+<span class="comment"># Rule Name</span>
+
+<span class="comment">## Overview</span>
+Brief description of what this rule is for.
+
+<span class="comment">## Key tools</span>
+List the MCP tools or packages the AI should use for this domain.
+
+<span class="comment">## How to run [your workflow]</span>
+A short code example or step-by-step for the most common task.
+
+<span class="comment">## Rules</span>
+- Data input/output paths
+- Naming conventions
+- Compliance constraints specific to this workflow
+
+<span class="comment">## Common errors and fixes</span>
+Known failure modes and how to resolve them.</code></pre>
+
+  <p>
+    The <code>description</code> field is what the AI uses to decide when to load the rule (for Agent Requested
+    types). Write it as a specific, action-oriented sentence. Rules load only when the AI determines they
+    are relevant.
+  </p>
+
+  <h3>Converting from Agent Skills to Cursor Rules</h3>
+  <p>
+    If you have existing skills in the Agent Skills format (used by Claude Code, Codex, and Kiro), convert
+    them to Cursor rules as follows:
+  </p>
+
+  <h4>Agent Skills format (<code>.claude/skills/etl-pipeline/SKILL.md</code>)</h4>
+  <pre><code>---
 name: etl-pipeline
 description: ETL pipeline workflows for data ingestion and transformation.
 ---
 
 <span class="comment"># ETL Pipeline</span>
-...</code></pre>
 
-  <h4>Cursor format (<code>etl-pipeline.mdc</code>)</h4>
-<pre><code>---
+<span class="comment">## Overview</span>
+Covers the standard data ingestion pipeline...
+
+<span class="comment">## Key tools</span>
+- run_domino_job
+- check_domino_job_run_results
+
+<span class="comment">## How to run</span>
+1. Create script in /mnt/code/scripts/
+2. Run as Domino job
+3. Check results</code></pre>
+
+  <h4>Cursor format (<code>.cursor/rules/etl-pipeline.mdc</code>)</h4>
+  <pre><code>---
 description: ETL pipeline workflows for data ingestion and transformation.
 alwaysApply: <span class="keyword">false</span>
 ---
 
 <span class="comment"># ETL Pipeline</span>
-...</code></pre>
 
-  <p>Key differences:</p>
-  <ul>
-    <li>Drop the <code>name</code> field, the filename serves as the identifier.</li>
-    <li>Add <code>alwaysApply</code>, <code>globs</code>, or neither to control when the rule is loaded (see the rule types table above).</li>
-    <li>The body content (Markdown) stays the same.</li>
-  </ul>
+<span class="comment">## Overview</span>
+Covers the standard data ingestion pipeline...
+
+<span class="comment">## Key tools</span>
+- run_domino_job
+- check_domino_job_run_results
+
+<span class="comment">## How to run</span>
+1. Create script in /mnt/code/scripts/
+2. Run as Domino job
+3. Check results</code></pre>
+
+  <h4>Key differences in the conversion</h4>
+  <table>
+    <thead>
+      <tr><th>Change</th><th>Details</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Drop the <code>name</code> field</td>
+        <td>The filename serves as the identifier in Cursor. <code>etl-pipeline.mdc</code> becomes the rule name.</td>
+      </tr>
+      <tr>
+        <td>Add a loading strategy</td>
+        <td>Set <code>alwaysApply</code>, <code>globs</code>, or leave only <code>description</code> to control when the rule is loaded (see rule types above).</td>
+      </tr>
+      <tr>
+        <td>Move the file</td>
+        <td>From <code>.claude/skills/&lt;name&gt;/SKILL.md</code> to <code>.cursor/rules/&lt;name&gt;.mdc</code>.</td>
+      </tr>
+      <tr>
+        <td>Body stays the same</td>
+        <td>The Markdown content (everything after the frontmatter) transfers directly without changes.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Using the Folder Format (v2.2 and Later)</h3>
+  <p>
+    For rules that need supporting files (templates, scripts, reference data), use the folder-based format
+    introduced in Cursor v2.2:
+  </p>
+
+  <div class="file-tree">.cursor/rules/
+└── etl-pipeline/
+    ├── RULE.md                    ← The rule content (same frontmatter as .mdc)
+    ├── scripts/
+    │   └── validate_schema.py     ← Helper scripts referenced by the rule
+    └── templates/
+        └── pipeline_config.yaml   ← Template files the AI can use</div>
+
+  <p>The <code>RULE.md</code> file uses the same YAML frontmatter as <code>.mdc</code> files. The folder name becomes the rule identifier.</p>
+
+  <h3>domino.mdc vs. Domain Rules</h3>
+  <table>
+    <thead>
+      <tr><th>File</th><th>Scope</th><th>When to Use</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>domino.mdc</code></td>
+        <td>Universal (Always Apply)</td>
+        <td>Rules for every conversation: platform behavior, path conventions, Git discipline, compliance.</td>
+      </tr>
+      <tr>
+        <td>Domain <code>.mdc</code> files</td>
+        <td>Context-specific (Agent Requested or Auto Attached)</td>
+        <td>Knowledge for a particular workflow. If a rule only applies when running a specific pipeline or tool, it belongs in a separate rule file.</td>
+      </tr>
+    </tbody>
+  </table>
 
   <!-- ============================================================ -->
-  <!-- COMPLETE TEMPLATE                                             -->
+  <!-- PART 7: COMPLETE TEMPLATE                                     -->
   <!-- ============================================================ -->
-  <h2>Complete Template</h2>
+  <h2>Part 7: The Complete Template</h2>
 
-  <p>A fully built-out Cursor project with both platform rules and domain skills looks like this:</p>
+  <p>
+    A fully built-out Cursor project with both platform rules and domain skills looks like this:
+  </p>
 
   <div class="file-tree">/mnt/code/
-&boxvr;&boxh;&boxh; domino_project_settings.md
-&boxur;&boxh;&boxh; .cursor/
-    &boxvr;&boxh;&boxh; mcp.json
-    &boxur;&boxh;&boxh; rules/
-        &boxvr;&boxh;&boxh; domino.mdc                 &larr; Platform rules (always)
-        &boxvr;&boxh;&boxh; etl-pipeline.mdc           &larr; your workflow
-        &boxvr;&boxh;&boxh; data-sources.mdc           &larr; your data patterns
-        &boxur;&boxh;&boxh; compliance.mdc             &larr; your governance rules</div>
+├── domino_project_settings.md         ← Project name and user name
+└── .cursor/
+    ├── mcp.json                       ← MCP server config (Domino + custom)
+    └── rules/
+        ├── domino.mdc                 ← Platform rules (Always Apply)
+        ├── etl-pipeline.mdc           ← Your data ingestion workflow (Agent Requested)
+        ├── data-sources.mdc           ← Your data access patterns (Agent Requested)
+        ├── python-standards.mdc       ← Python conventions (Auto Attached, globs: "*.py")
+        └── compliance.mdc             ← Your governance rules (Always Apply)</div>
+
+  <p>
+    The Domino platform rule (<code>domino.mdc</code>) is always loaded. Domain rules are loaded based on
+    their type: Auto Attached when matching files are referenced, Agent Requested when the AI determines
+    they are relevant, or Manual when explicitly invoked.
+  </p>
 
   <!-- ============================================================ -->
-  <!-- EXTENDING                                                     -->
+  <!-- PART 8: EXTENDING                                             -->
   <!-- ============================================================ -->
-  <h2>Extending</h2>
+  <h2>Part 8: Extending</h2>
 
-  <h3>Custom MCP servers</h3>
-  <p>Add additional servers to <code>.cursor/mcp.json</code> under the <code>mcpServers</code> key, the format is the same as Claude Code's <code>.mcp.json</code>:</p>
+  <h3>Custom MCP Servers</h3>
+  <p>
+    Write a custom MCP server when you need Cursor to take actions against an internal system at runtime:
+    querying a proprietary database, submitting to an internal API, fetching from a data catalog. Register
+    it by adding an entry to the <code>mcpServers</code> key in <code>.cursor/mcp.json</code>:
+  </p>
 
-<pre><code>{
+  <pre><code>{
   <span class="string">"mcpServers"</span>: {
     <span class="string">"domino_server"</span>: {
       <span class="string">"command"</span>: <span class="string">"python"</span>,
@@ -275,8 +684,95 @@ alwaysApply: <span class="keyword">false</span>
   }
 }</code></pre>
 
-  <h3>No slash commands</h3>
-  <p>Cursor does not have a slash-command equivalent like Claude Code's <code>.claude/commands/</code>. For reusable multi-step workflows, create <strong>Agent Requested</strong> rules instead, rules with only a <code>description</code> in the frontmatter that the agent loads when relevant.</p>
+  <p>
+    The format is identical to Claude Code's <code>.mcp.json</code>. A minimal MCP server using FastMCP:
+  </p>
+
+  <pre><code><span class="keyword">from</span> fastmcp <span class="keyword">import</span> FastMCP
+<span class="keyword">import</span> requests, os
+
+mcp = FastMCP(<span class="string">"my-server"</span>)
+
+<span class="keyword">def</span> _auth():
+    <span class="keyword">if</span> os.environ.get(<span class="string">"DOMINO_API_HOST"</span>):
+        token = requests.get(
+            <span class="string">"http://localhost:8899/access-token"</span>, timeout=5
+        ).text.strip()
+        <span class="keyword">return</span> {<span class="string">"Authorization"</span>: f<span class="string">"Bearer {token}"</span>}
+    <span class="keyword">return</span> {<span class="string">"X-Domino-Api-Key"</span>: os.environ.get(<span class="string">"DOMINO_API_KEY"</span>, <span class="string">""</span>)}
+
+@mcp.tool()
+<span class="keyword">def</span> query_catalog(query: str) -> dict:
+    <span class="string">"""Query internal data catalog. Returns matching datasets."""</span>
+    resp = requests.post(
+        <span class="string">"https://catalog.myorg.net/api/search"</span>,
+        json={<span class="string">"query"</span>: query},
+        headers=_auth(),
+        timeout=30,
+    )
+    resp.raise_for_status()
+    <span class="keyword">return</span> resp.json()
+
+<span class="keyword">if</span> __name__ == <span class="string">"__main__"</span>:
+    mcp.run()</code></pre>
+
+  <p>
+    Key principles: one tool per action, precise docstrings (Cursor reads them to decide when to call
+    the tool), return structured data, include clickable URLs in responses when your tool creates
+    something with a UI.
+  </p>
+
+  <h3>Agent Requested Rules as Workflow Shortcuts</h3>
+  <p>
+    Cursor does not have a slash-command system like Claude Code's <code>.claude/commands/</code>. For
+    reusable multi-step workflows, create <strong>Agent Requested</strong> rules instead. Write a clear
+    <code>description</code> so the AI loads the rule when the user asks about that topic:
+  </p>
+
+  <pre><code>---
+description: Standard procedure for scaffolding a new MLflow experiment with Domino job execution.
+---
+
+<span class="comment"># New Experiment Setup</span>
+
+When the user wants to set up a new experiment:
+
+1. Create a training script in /mnt/code/experiments/
+2. Add MLflow tracking with experiment name matching the project
+3. Commit and push the script
+4. Run as a Domino job using run_domino_job
+5. Check results and share the MLflow run URL</code></pre>
+
+  <p>
+    When a user asks "set up a new experiment," Cursor evaluates the description, loads the rule, and
+    follows the workflow steps. This provides similar functionality to Claude Code's slash commands,
+    though activation depends on the AI's judgment rather than an explicit command.
+  </p>
+
+  <h3>Team-Wide Rule Distribution</h3>
+  <p>
+    For organizations on Cursor's Team or Enterprise plans, use the Cursor dashboard to configure
+    Team Rules that are enforced across all team members. These take highest precedence and cannot
+    be overridden by project or user rules. This is useful for organization-wide compliance
+    requirements.
+  </p>
+  <p>
+    For teams not on enterprise plans, maintain a shared Git repository of <code>.mdc</code> files
+    and copy them into each project's <code>.cursor/rules/</code> directory. You can automate this
+    in the pre-run script:
+  </p>
+
+  <pre><code><span class="comment"># Copy org-wide rules from imported repo into .cursor/rules/</span>
+ORG_RULES=<span class="string">"/mnt/imported/code/org-cursor-rules"</span>
+
+<span class="keyword">if</span> [ -d <span class="string">"$ORG_RULES"</span> ]; <span class="keyword">then</span>
+    mkdir -p /mnt/code/.cursor/rules
+    <span class="keyword">for</span> rule_file <span class="keyword">in</span> <span class="string">"$ORG_RULES"</span>/rules/*.mdc; <span class="keyword">do</span>
+        [ -f <span class="string">"$rule_file"</span> ] || continue
+        cp <span class="string">"$rule_file"</span> <span class="string">"/mnt/code/.cursor/rules/$(basename "$rule_file")"</span>
+    <span class="keyword">done</span>
+    echo <span class="string">"[ok] Copied $(ls "$ORG_RULES"/rules/*.mdc 2>/dev/null | wc -l) org rules"</span>
+<span class="keyword">fi</span></code></pre>
 
   <!-- ============================================================ -->
   <!-- VERIFICATION                                                  -->
@@ -285,12 +781,33 @@ alwaysApply: <span class="keyword">false</span>
 
   <p>To verify the setup is working:</p>
   <ol>
-    <li>Open the project in Cursor.</li>
+    <li>Create a new project from the template in Domino.</li>
+    <li>Start a workspace (any IDE; Cursor connects remotely).</li>
+    <li>Open the project folder in Cursor on your local machine.</li>
     <li>Switch to <strong>Agent mode</strong> (<code>Cmd+L</code> on macOS, <code>Ctrl+L</code> on Windows/Linux).</li>
-    <li>Ask: <em>"What MCP tools do you have available?"</em></li>
+    <li>Ask: <strong>"What MCP tools do you have available?"</strong></li>
   </ol>
+  <p>
+    Cursor should list the <code>domino_server</code> tools (<code>run_domino_job</code>,
+    <code>check_domino_job_run_status</code>, etc.). If it does, the MCP connection is working.
+    Try a follow-up: <strong>"List the files in my Domino project"</strong> to confirm end-to-end
+    connectivity.
+  </p>
 
-  <p>Cursor should list the <code>domino_server</code> tools (<code>run_domino_job</code>, <code>check_domino_job_run_status</code>, etc.). If it does, the MCP connection is working. Try a follow-up: <em>"List the files in my Domino project"</em> to confirm end-to-end connectivity.</p>
+  <p>If the tools do not appear, check:</p>
+  <ul>
+    <li><code>.cursor/mcp.json</code> exists and is valid JSON.</li>
+    <li>The MCP server dependencies (<code>fastmcp</code>, <code>requests</code>, <code>python-dotenv</code>) are installed in the Domino environment.</li>
+    <li>The imported plugin repo is mounted at <code>/mnt/imported/code/domino-data-lab-plugin</code>.</li>
+    <li>Environment variables <code>DOMINO_USER_API_KEY</code> and <code>DOMINO_API_HOST</code> are set in the workspace.</li>
+  </ul>
+
+  <p>To verify rules are loading:</p>
+  <ol>
+    <li>Open Cursor Settings and check the Rules section to confirm project rules are detected.</li>
+    <li>Ask: <strong>"What rules do you have loaded?"</strong></li>
+    <li>The AI should reference the Domino platform rules from <code>domino.mdc</code>.</li>
+  </ol>
 
   <!-- ============================================================ -->
   <!-- RESOURCES                                                     -->
@@ -298,6 +815,7 @@ alwaysApply: <span class="keyword">false</span>
   <h2>Resources</h2>
 
   <ul>
+    <li><a href="https://cursor.com">Cursor download and homepage</a></li>
     <li><a href="https://cursor.com/docs">Cursor official documentation</a></li>
     <li><a href="https://cursor.com/docs/context/rules">Rules documentation</a></li>
     <li><a href="https://cursor.com/docs/mcp">MCP documentation</a></li>
