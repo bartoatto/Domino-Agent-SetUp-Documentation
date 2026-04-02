@@ -88,10 +88,14 @@
   <!-- ============================================================ -->
   <h2>Part 2: Setting Up the Environment</h2>
 
-  <p>Two things need to be created once and reused across all projects: a <strong>Domino environment</strong> and a <strong>Domino project template</strong>. The environment provides the runtime: system utilities, MCP server dependencies, and optionally the agent CLI. The template provides the project structure (covered in <a href="#part3">Part 3</a>).</p>
+  <blockquote>
+    <p><strong>Already included:</strong> The Domino Standard Environment (DSE) ships with GitHub Copilot, Claude Code, and Codex pre-installed as VS Code extensions, with CLI tools also available. If the standard environment meets your needs, you can skip the custom Dockerfile steps below and go straight to <a href="#part3">Part 3: Setting Up the Project Template</a>.</p>
+  </blockquote>
+
+  <p>A custom environment is needed when your team wants to: use agents not in the standard environment (Cursor, Kiro, Aider, Continue), pin specific agent versions for compliance, pre-configure MCP server dependencies, or bundle additional CLI tools. Two things are created once and reused across all projects: a <strong>Domino environment</strong> and a <strong>Domino project template</strong>.</p>
 
   <h3>Common Dockerfile base</h3>
-  <p>The following Dockerfile instructions are the same for all agents. They install the system utilities and MCP server dependencies that every agent needs.</p>
+  <p>The following Dockerfile instructions are the same for all agents. They install the system utilities and MCP server dependencies that every agent needs. Add these on top of any Debian/Ubuntu-based Domino image.</p>
 
 <pre><code><span class="comment"># ── Install system utilities ──</span>
 <span class="keyword">USER</span> root
@@ -117,6 +121,17 @@
 
   <blockquote>
     <p><strong>Note for IDE-based agents (Cursor, Kiro, Copilot):</strong> The agent itself does not need to be installed in the environment, it runs in the user's local IDE. Only the MCP server dependencies are needed in the Domino environment.</p>
+  </blockquote>
+
+  <h3>Persistence</h3>
+  <p>Most coding agents store their configuration, auth credentials, and chat history in the user's home directory (e.g., <code>~/.claude/</code>, <code>~/.codex/</code>). Domino offers two ways to preserve these across workspace restarts:</p>
+  <ul>
+    <li><strong>Home directory persistence (recommended):</strong> Enable this in your workspace settings. Files under <code>/home/ubuntu/</code> persist automatically. This is the simplest option and covers most agents.</li>
+    <li><strong>Artifacts-based persistence:</strong> For more control (e.g., per-user isolation on shared hardware tiers), the pre-run script can symlink agent config directories to <code>/mnt/artifacts/</code>. See the agent-specific guides for details.</li>
+  </ul>
+
+  <blockquote>
+    <p><strong>Important:</strong> Do not hardcode API keys in your Dockerfile. Domino does not currently provide a secure mechanism to inject secrets at the environment level. Users should authenticate interactively or store credentials in their persistent home directory.</p>
   </blockquote>
 
   <!-- ============================================================ -->
