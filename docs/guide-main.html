@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Domino Agentic Coding Setup Guide</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="nav-bar">
+  <img src="domino-logo.svg" alt="Domino" class="logo">
+  <span class="separator">|</span>
+  <div class="nav-links">
+    <a href="guide-main.html" class="active">Overview</a>
+    <a href="guide-claude-code.html">Claude Code</a>
+    <a href="guide-codex.html">Codex</a>
+    <a href="guide-cursor.html">Cursor</a>
+    <a href="guide-kiro.html">Kiro</a>
+    <a href="guide-copilot.html">Copilot</a>
+  </div>
+</div>
+<div class="content">
+
+  <h1>Domino Agentic Coding Setup Guide</h1>
+
+  <p>A project template guide for configuring AI coding agents with Domino and your domain knowledge</p>
+
+  <hr>
+
+  <h2>Overview</h2>
+
+  <p>AI coding agents are agentic assistants that can take actions on your behalf: running workflows, querying systems, analyzing data, and generating outputs. Out of the box, they have no knowledge of Domino, your internal tooling, or your domain.</p>
+
+  <p>This guide shows how to close that gap using Domino's infrastructure --- environments, project templates, Git integration, and imported code repositories --- to deliver context and configuration to whichever coding agent your team uses.</p>
+
+  <h3>Why the Domino plugin matters</h3>
+
+  <p>Without it, your coding agent has no knowledge of how Domino works. The plugin gives it everything it needs to operate on the platform: running jobs, accessing datasets, deploying apps, tracking experiments. You can tell it to run your training script as a Domino Job and it knows exactly what to do.</p>
+
+  <h3>Why adding your own skills makes it more powerful</h3>
+
+  <p>The plugin covers the platform. Your skills cover your domain. When you add skills for your data pipelines, internal APIs, and compliance rules, the agent stops being a generic assistant and starts understanding how your team specifically works.</p>
+
+  <h3>Two layers, in short</h3>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Layer</th>
+        <th>Source</th>
+        <th>What it covers</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Domino platform plugin</strong></td>
+        <td>Provided by Domino</td>
+        <td>Jobs, environments, datasets, apps, model endpoints, MLflow, tracing, distributed computing</td>
+      </tr>
+      <tr>
+        <td><strong>Your domain skills</strong></td>
+        <td>Added by your team</td>
+        <td>Your workflows, data pipelines, internal APIs, compliance rules</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <hr>
+
+  <h2>Part 1: The Universal Pattern</h2>
+
+  <p>Every modern coding agent follows the same fundamental architecture for consuming context:</p>
+
+  <h3>1. A system prompt file at the repo root</h3>
+
+  <p>A Markdown file read automatically at session start. It tells the agent what it is, what it can do, and how to behave. The file name varies by agent, but the purpose is identical.</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Agent</th>
+        <th>System Prompt File</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Claude Code</td>
+        <td><code>CLAUDE.md</code></td>
+      </tr>
+      <tr>
+        <td>Codex</td>
+        <td><code>AGENTS.md</code></td>
+      </tr>
+      <tr>
+        <td>Cursor</td>
+        <td><code>.cursor/rules/*.mdc</code></td>
+      </tr>
+      <tr>
+        <td>Kiro</td>
+        <td><code>.kiro/steering/*.md</code></td>
+      </tr>
+      <tr>
+        <td>GitHub Copilot</td>
+        <td><code>.github/copilot-instructions.md</code></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>2. MCP (Model Context Protocol) servers</h3>
+
+  <p>MCP is an open standard for giving agents runtime tools. All major coding agents support it. A single MCP server (like the Domino MCP server) can provide tools to any agent --- the server code is reusable; only the configuration file differs.</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Agent</th>
+        <th>MCP Config File</th>
+        <th>Root Key</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Claude Code</td>
+        <td><code>.mcp.json</code></td>
+        <td><code>mcpServers</code></td>
+      </tr>
+      <tr>
+        <td>Codex</td>
+        <td><code>.codex/config.toml</code></td>
+        <td><code>[mcp_servers.&lt;id&gt;]</code></td>
+      </tr>
+      <tr>
+        <td>Cursor</td>
+        <td><code>.cursor/mcp.json</code></td>
+        <td><code>mcpServers</code></td>
+      </tr>
+      <tr>
+        <td>Kiro</td>
+        <td><code>.kiro/settings/mcp.json</code></td>
+        <td><code>mcpServers</code></td>
+      </tr>
+      <tr>
+        <td>GitHub Copilot (VS Code)</td>
+        <td><code>.vscode/mcp.json</code></td>
+        <td><code>servers</code></td>
+      </tr>
+      <tr>
+        <td>GitHub Copilot (CLI)</td>
+        <td><code>~/.copilot/mcp-config.json</code></td>
+        <td><code>mcpServers</code></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>3. Skills / rules directories</h3>
+
+  <p>Modular, topic-specific instruction files the agent loads on demand. The format varies, but the concept is the same: a description tells the agent when to load it, and the body contains the instructions.</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Agent</th>
+        <th>Skills Directory</th>
+        <th>File Format</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Claude Code</td>
+        <td><code>.claude/skills/*/</code></td>
+        <td><code>SKILL.md</code> with YAML frontmatter</td>
+      </tr>
+      <tr>
+        <td>Codex</td>
+        <td><code>.agents/skills/*/</code></td>
+        <td><code>SKILL.md</code> with YAML frontmatter</td>
+      </tr>
+      <tr>
+        <td>Cursor</td>
+        <td><code>.cursor/rules/</code></td>
+        <td><code>*.mdc</code> with YAML frontmatter</td>
+      </tr>
+      <tr>
+        <td>Kiro</td>
+        <td><code>.kiro/skills/*/</code></td>
+        <td><code>SKILL.md</code> with YAML frontmatter</td>
+      </tr>
+      <tr>
+        <td>GitHub Copilot</td>
+        <td><code>.github/instructions/</code></td>
+        <td><code>*.instructions.md</code> with <code>applyTo</code> frontmatter</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>Claude Code, Codex, and Kiro all follow the <a href="https://agentskills.io">open Agent Skills standard</a>, making skills portable between them.</p>
+
+  <h3>4. The delivery mechanism: Domino</h3>
+
+  <p>The agent-specific files are just configuration. Domino provides the infrastructure to deliver them consistently:</p>
+
+  <ul>
+    <li><strong>Environments</strong> install the agent runtime (CLI binary, dependencies)</li>
+    <li><strong>Project Templates</strong> deliver the configuration files and directory structure</li>
+    <li><strong>Imported Code Repositories</strong> share skills and plugins across every project</li>
+    <li><strong>Pre-run scripts</strong> wire everything together at workspace start</li>
+  </ul>
+
+  <p>Change the template once; every new project gets the updated configuration.</p>
+
+  <hr>
+
+  <h2>Part 2: Domino Infrastructure Setup</h2>
+
+  <p>This section is <strong>agent-agnostic</strong>. The environment installs whichever agent your team uses; the template delivers the corresponding configuration files.</p>
+
+  <h3>Part 2a: Setting Up the Environment</h3>
+
+  <p>The workspace environment installs system utilities and MCP server dependencies at build time. The agent runtime is either baked into the image (for air-gapped environments) or installed fresh at workspace start via the pre-run script (for environments with internet access).</p>
+
+  <h4>Step 1: Dockerfile Instructions</h4>
+
+  <p>Create a new Domino environment based on any Debian/Ubuntu-based Python image and add the following Dockerfile instructions.</p>
+
+  <p><strong>Option A: Open internet</strong> --- agent installed at workspace start, always up to date:</p>
+
+  <pre><code class="language-dockerfile"># -- Install system utilities --
+USER root
+RUN apt-get update &amp;&amp; \
+    apt-get install -y ripgrep jq vim iptables ipset &amp;&amp; \
+    rm -rf /var/lib/apt/lists/*
+
+# -- Create directories --
+RUN mkdir -p /home/ubuntu/.claude /commandhistory &amp;&amp; \
+    chown -R ubuntu:ubuntu /home/ubuntu/.claude /commandhistory
+
+# -- Set environment variables --
+ENV PATH="/home/ubuntu/.claude/bin:/home/ubuntu/.local/bin:$PATH"
+
+# -- Install MCP server dependencies (required) --
+RUN pip install --no-cache-dir fastmcp requests python-dotenv
+
+# -- Install additional packages (optional -- add what your team needs) --
+RUN pip install dash dash-cytoscape ydata_profiling streamlit st-pages \
+    streamlit-extras pandas pyarrow requests tenacity python-dateutil \
+    gym torch jupyter-ai[all] jupyter-ai-magics[all] h2o prophet optuna \
+    tensorflow folium streamlit-folium rfc3339
+RUN pip install --upgrade dominodatalab-data snowflake-connector-python pyarrow
+USER ubuntu</code></pre>
+
+  <p><strong>Option B: Air-gapped / restricted internet</strong> --- agent baked into the image:</p>
+
+  <pre><code class="language-dockerfile"># -- Install system utilities --
+USER root
+RUN apt-get update &amp;&amp; \
+    apt-get install -y ripgrep jq vim iptables ipset &amp;&amp; \
+    rm -rf /var/lib/apt/lists/*
+
+# -- Create directories --
+RUN mkdir -p /home/ubuntu/.claude /commandhistory &amp;&amp; \
+    chown -R ubuntu:ubuntu /home/ubuntu/.claude /commandhistory
+
+# -- Install the agent into the image --
+USER ubuntu
+# Claude Code:
+RUN curl -fsSL https://claude.ai/install.sh | bash
+# Codex (requires Node.js 22+):
+# RUN npm install -g @openai/codex
+ENV PATH="/home/ubuntu/.claude/bin:/home/ubuntu/.local/bin:$PATH"
+
+# -- Install MCP server dependencies (required) --
+USER root
+RUN pip install --no-cache-dir fastmcp requests python-dotenv
+
+# -- Install additional packages (optional) --
+RUN pip install dash dash-cytoscape ydata_profiling streamlit st-pages \
+    streamlit-extras pandas pyarrow requests tenacity python-dateutil \
+    gym torch jupyter-ai[all] jupyter-ai-magics[all] h2o prophet optuna \
+    tensorflow folium streamlit-folium rfc3339
+RUN pip install --upgrade dominodatalab-data snowflake-connector-python pyarrow
+USER ubuntu</code></pre>
+
+  <p><strong>Base image requirements:</strong> The base image must be Debian/Ubuntu-based (uses <code>apt-get</code> and the <code>ubuntu</code> user). All Domino standard environments meet this requirement. Adapt if using a different base user.</p>
+
+  <blockquote>
+    <p><strong>Note on IDE-based agents (Cursor, Kiro, Copilot):</strong> These agents run as extensions inside their respective IDEs rather than as standalone CLI tools. The Dockerfile above is designed for CLI agents (Claude Code, Codex). For IDE-based agents, the agent itself does not need to be installed in the environment --- it ships with the IDE. The MCP server dependencies and system utilities are still required. See the agent-specific appendices for details.</p>
+  </blockquote>
+
+  <h4>Step 2: Add the Pre-Run Script</h4>
+
+  <p>The pre-run script runs automatically at every workspace start. It handles: installing the agent if not present, setting up persistent storage, symlinking plugin skills, and populating project settings.</p>
+
+  <pre><code class="language-bash">#!/bin/bash
+# start_workspace.sh -- Domino pre-run script for AI coding agents
+# Handles installation, per-user persistence, and plugin discovery.
+# Run once automatically at workspace start.
+#
+# Security: OAuth credentials (~/.claude/.credentials.json) are scrubbed
+# on each cold start to prevent token leakage via shared /mnt/artifacts.
+# Preferences (~/.claude.json) are safe to persist -- they contain no secrets.
+
+set -e
+
+echo "=== Coding Agent Workspace Setup ==="
+
+# ---------------------------------------------------------------
+# 1. Install agent if not present
+# ---------------------------------------------------------------
+# Uncomment the block for your agent:
+
+# -- Claude Code --
+if ! command -v claude &amp;&gt; /dev/null; then
+    echo "[!] Claude Code not found. Installing..."
+    curl -fsSL https://claude.ai/install.sh | bash
+    export PATH="$HOME/.local/bin:$PATH"
+fi
+echo "[ok] Claude Code version: $(claude --version 2&gt;/dev/null || echo 'installed')"
+
+# -- Codex (requires Node.js 22+) --
+# if ! command -v codex &amp;&gt; /dev/null; then
+#     echo "[!] Codex not found. Installing..."
+#     npm install -g @openai/codex
+# fi
+# echo "[ok] Codex version: $(codex --version 2&gt;/dev/null || echo 'installed')"
+
+# ---------------------------------------------------------------
+# 2. Per-user persistent storage (Claude Code specific)
+# ---------------------------------------------------------------
+if [ -n "$DOMINO_USER_NAME" ]; then
+    PERSIST_USER="$DOMINO_USER_NAME"
+else
+    PERSIST_USER="$USER"
+    echo "[!] DOMINO_USER_NAME not set, falling back to: $PERSIST_USER"
+fi
+
+PERSIST_DIR="/mnt/artifacts/.claude-users/${PERSIST_USER}/.claude"
+mkdir -p "$PERSIST_DIR"
+echo "[i] Persistent storage: $PERSIST_DIR"
+
+# -- Symlink ~/.claude to persistent storage --
+HOME_CLAUDE="$HOME/.claude"
+
+if [ -d "$HOME_CLAUDE" ] &amp;&amp; [ ! -L "$HOME_CLAUDE" ]; then
+    echo "[i] Migrating existing ~/.claude to persistent storage..."
+    cp -r "$HOME_CLAUDE/"* "$PERSIST_DIR/" 2&gt;/dev/null || true
+    rm -rf "$HOME_CLAUDE"
+fi
+
+[ -L "$HOME_CLAUDE" ] &amp;&amp; [ ! -e "$HOME_CLAUDE" ] &amp;&amp; rm -f "$HOME_CLAUDE"
+
+if [ ! -L "$HOME_CLAUDE" ]; then
+    ln -s "$PERSIST_DIR" "$HOME_CLAUDE"
+    echo "[ok] ~/.claude symlinked to $PERSIST_DIR"
+else
+    echo "[ok] ~/.claude persistence already configured"
+fi
+
+# -- Force fresh authentication --
+rm -f "$HOME/.claude/.credentials.json" 2&gt;/dev/null || true
+rm -f "$HOME/.claude/backups/.claude.json.backup."* 2&gt;/dev/null || true
+echo "[ok] Cleared OAuth credentials"
+
+# -- Persist ~/.claude.json (preferences, not secrets) --
+PERSIST_JSON="/mnt/artifacts/.claude-users/${PERSIST_USER}/.claude.json"
+HOME_JSON="$HOME/.claude.json"
+
+if [ ! -f "$PERSIST_JSON" ]; then
+    if [ -f "$HOME_JSON" ] &amp;&amp; [ ! -L "$HOME_JSON" ]; then
+        cp "$HOME_JSON" "$PERSIST_JSON"
+    else
+        echo '{}' &gt; "$PERSIST_JSON"
+    fi
+fi
+
+rm -f "$HOME_JSON" 2&gt;/dev/null || true
+
+if [ ! -L "$HOME_JSON" ]; then
+    ln -s "$PERSIST_JSON" "$HOME_JSON"
+    echo "[ok] ~/.claude.json symlinked to $PERSIST_JSON"
+else
+    echo "[ok] ~/.claude.json persistence already configured"
+fi
+
+# ---------------------------------------------------------------
+# 3. Register Domino plugin (skills, commands, agents)
+# ---------------------------------------------------------------
+PLUGIN_DIR="/mnt/imported/code/domino-data-lab-plugin"
+
+# -- Claude Code / Kiro skills (SKILL.md format, Agent Skills standard) --
+mkdir -p /mnt/code/.claude/skills
+for skill_dir in "$PLUGIN_DIR"/skills/*/; do
+    skill_name=$(basename "$skill_dir")
+    ln -sf "$skill_dir" "/mnt/code/.claude/skills/$skill_name" 2&gt;/dev/null || true
+done
+
+# -- Kiro skills (same standard, different path) --
+mkdir -p /mnt/code/.kiro/skills
+for skill_dir in "$PLUGIN_DIR"/skills/*/; do
+    skill_name=$(basename "$skill_dir")
+    ln -sf "$skill_dir" "/mnt/code/.kiro/skills/$skill_name" 2&gt;/dev/null || true
+done
+
+# -- Codex skills (same standard, different path) --
+mkdir -p /mnt/code/.agents/skills
+for skill_dir in "$PLUGIN_DIR"/skills/*/; do
+    skill_name=$(basename "$skill_dir")
+    ln -sf "$skill_dir" "/mnt/code/.agents/skills/$skill_name" 2&gt;/dev/null || true
+done
+
+# -- Claude Code commands --
+mkdir -p /mnt/code/.claude/commands
+for cmd_file in "$PLUGIN_DIR"/commands/*.md; do
+    [ -f "$cmd_file" ] || continue
+    ln -sf "$cmd_file" "/mnt/code/.claude/commands/$(basename "$cmd_file")" 2&gt;/dev/null || true
+done
+
+# -- Claude Code agents --
+mkdir -p /mnt/code/.claude/agents
+for agent_file in "$PLUGIN_DIR"/agents/*.md; do
+    [ -f "$agent_file" ] || continue
+    ln -sf "$agent_file" "/mnt/code/.claude/agents/$(basename "$agent_file")" 2&gt;/dev/null || true
+done
+
+# -- Claude Code output styles --
+mkdir -p /mnt/code/.claude/output-styles
+for style_file in "$PLUGIN_DIR"/output-styles/*.md; do
+    [ -f "$style_file" ] || continue
+    ln -sf "$style_file" \
+      "/mnt/code/.claude/output-styles/$(basename "$style_file")" 2&gt;/dev/null || true
+done
+
+echo "[ok] Registered skills: $(ls /mnt/code/.claude/skills/ 2&gt;/dev/null | wc -l) (Claude Code), \
+$(ls /mnt/code/.kiro/skills/ 2&gt;/dev/null | wc -l) (Kiro), \
+$(ls /mnt/code/.agents/skills/ 2&gt;/dev/null | wc -l) (Codex)"
+
+# ---------------------------------------------------------------
+# 4. Populate domino_project_settings.md from environment
+# ---------------------------------------------------------------
+if [ -f "/mnt/code/domino_project_settings.md" ] &amp;&amp; \
+   [ -n "$DOMINO_PROJECT_NAME" ] &amp;&amp; [ -n "$DOMINO_USER_NAME" ]; then
+    cat &gt; /mnt/code/domino_project_settings.md &lt;&lt; EOF
+# Domino project settings to use with the MCP server domino_server
+project_name="${DOMINO_PROJECT_NAME}"
+user_name="${DOMINO_USER_NAME}"
+EOF
+    echo "[ok] domino_project_settings.md populated from environment"
+fi
+
+echo "=== Coding agent setup complete ==="</code></pre>
+
+  <h3>Part 2b: Setting Up the Template</h3>
+
+  <p>The template is a Domino project template backed by a Git repository. When a team member creates a new project from the template, they get the configuration files for their chosen agent pre-loaded.</p>
+
+  <h4>Step 1: Create the Git Repository</h4>
+
+  <p>Create a new Git repository containing configuration files for all agents your team uses. A multi-agent template looks like this:</p>
+
+  <div class="file-tree">/mnt/code/
+├── domino_project_settings.md         # Shared: project name/user (read by MCP server)
+│
+├── CLAUDE.md                          # Claude Code: system prompt
+├── .mcp.json                          # Claude Code: MCP config
+├── .claude/
+│   └── settings.json                  # Claude Code: plugin reference
+│
+├── AGENTS.md                          # Codex: system prompt
+├── .codex/
+│   └── config.toml                    # Codex: MCP + settings
+│
+├── .cursor/
+│   ├── rules/
+│   │   └── domino.mdc                 # Cursor: system prompt as rule
+│   └── mcp.json                       # Cursor: MCP config
+│
+├── .kiro/
+│   ├── steering/
+│   │   └── domino.md                  # Kiro: system prompt as steering
+│   └── settings/
+│       └── mcp.json                   # Kiro: MCP config
+│
+├── .github/
+│   ├── copilot-instructions.md        # Copilot: system prompt
+│   └── instructions/
+│       └── domino.instructions.md     # Copilot: Domino-specific instructions
+├── .vscode/
+│   └── mcp.json                       # Copilot (VS Code): MCP config</div>
+
+  <p>Each agent reads only its own files and ignores the rest. A single template can support multiple agents simultaneously.</p>
+
+  <p>The content of each agent's system prompt file is functionally identical --- the same Domino platform rules, data paths, and compliance instructions --- just formatted for each agent's expected file and structure. See the agent-specific appendices for the exact file contents.</p>
+
+  <h4>Step 2: Register as a Domino Project Template</h4>
+
+  <p>In Domino, create a new project template pointing to the Git repository. When configuring the template, attach the following repository as Imported Code:</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Repository</th>
+        <th>Mounts at</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>https://github.com/dominodatalab/domino-claude-plugin.git</code></td>
+        <td><code>/mnt/imported/code/domino-data-lab-plugin</code></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>Also set the default environment to the one built in Part 2a and the default hardware tier.</p>
+
+  <h4>Step 3: Verify</h4>
+
+  <p>Create a new project from the template, start an IDE workspace, open a terminal and launch your agent. Try: "What Domino skills do you have?"</p>
+
+  <p>The agent should respond with the Domino platform skills from the plugin. If it does, the template is working.</p>
+
+  <hr>
+
+  <h2>Part 3: Agent-Specific Walkthroughs</h2>
+
+  <p>Each appendix provides the exact configuration files and setup details for a specific agent:</p>
+
+  <ul>
+    <li><strong><a href="guide-claude-code.html">Appendix A: Claude Code</a></strong> --- full walkthrough (CLI agent, native MCP, Agent Skills standard)</li>
+    <li><strong><a href="guide-codex.html">Appendix B: OpenAI Codex</a></strong> --- full walkthrough (CLI agent, TOML config, Agent Skills standard)</li>
+    <li><strong><a href="guide-cursor.html">Appendix C: Cursor</a></strong> --- full walkthrough (IDE agent, <code>.mdc</code> rules, MCP support)</li>
+    <li><strong><a href="guide-kiro.html">Appendix D: Kiro</a></strong> --- full walkthrough (IDE + CLI agent, steering files, Agent Skills standard)</li>
+    <li><strong><a href="guide-copilot.html">Appendix E: GitHub Copilot</a></strong> --- full walkthrough (IDE + CLI agent, instructions files, MCP support)</li>
+  </ul>
+
+  <hr>
+
+  <h2>Part 4: Building Your Domain Skills</h2>
+
+  <p>Out of the box, the template gives the agent knowledge of the Domino platform only. The domain layer --- your workflows, your data, your internal APIs --- is empty. This is where your team's work begins.</p>
+
+  <h3>The Portable Format: Agent Skills Standard</h3>
+
+  <p>Claude Code, Codex, and Kiro all follow the <a href="https://agentskills.io">open Agent Skills standard</a>. A skill written once in this format works across all three agents:</p>
+
+  <div class="file-tree">my-skill/
+  SKILL.md          # Required: instructions + frontmatter
+  scripts/          # Optional: executable code
+  references/       # Optional: documentation
+  assets/           # Optional: templates</div>
+
+  <p><strong>SKILL.md format:</strong></p>
+
+  <pre><code class="language-markdown">---
+name: my-skill
+description: What this skill covers and when the agent should use it.
+---
+
+# My Skill
+
+## Overview
+Brief description of what this skill is for.
+
+## Key tools
+List the MCP tools or packages the agent should use for this domain.
+
+## How to run [your workflow]
+A short code example or step-by-step for the most common task.
+
+## Rules
+- Data input/output paths
+- Naming conventions
+- Compliance constraints specific to this workflow
+
+## Common errors and fixes</code></pre>
+
+  <p>The <code>description</code> field is critical --- it determines when the agent activates the skill. Write it as a specific, action-oriented sentence.</p>
+
+  <h3>Cursor and Copilot equivalents</h3>
+
+  <p>For Cursor, the same content goes into a <code>.mdc</code> file in <code>.cursor/rules/</code>:</p>
+
+  <pre><code class="language-markdown">---
+description: What this rule covers and when Cursor should use it.
+globs: "relevant/file/patterns/**"
+alwaysApply: false
+---
+
+[Same content as SKILL.md body]</code></pre>
+
+  <p>For Copilot, the same content goes into a <code>.instructions.md</code> file in <code>.github/instructions/</code>:</p>
+
+  <pre><code class="language-markdown">---
+applyTo: "relevant/file/patterns/**"
+---
+
+[Same content as SKILL.md body]</code></pre>
+
+  <h3>Where to Put Skills</h3>
+
+  <p><strong>Project-specific skills:</strong> Add to the agent's skills directory in your project Git repo. Commit and push; skills persist as long as they're in the repo.</p>
+
+  <p><strong>Org-wide skills:</strong> Create a dedicated Git repository (e.g., <code>my-org-claude-skills</code>), attach it to the project template as Imported Code, and add a block to the pre-run script to symlink it alongside the Domino plugin:</p>
+
+  <pre><code class="language-bash"># In start_workspace.sh, add after the existing plugin symlink loop
+ORG_SKILLS="/mnt/imported/code/my-org-claude-skills"
+
+# Agent Skills standard (Claude Code, Codex, Kiro)
+for skill_dir in "$ORG_SKILLS"/skills/*/; do
+    skill_name=$(basename "$skill_dir")
+    ln -sf "$skill_dir" "/mnt/code/.claude/skills/$skill_name" 2&gt;/dev/null || true
+    ln -sf "$skill_dir" "/mnt/code/.kiro/skills/$skill_name" 2&gt;/dev/null || true
+    ln -sf "$skill_dir" "/mnt/code/.agents/skills/$skill_name" 2&gt;/dev/null || true
+done
+
+# Cursor rules
+for rule_file in "$ORG_SKILLS"/cursor-rules/*.mdc; do
+    [ -f "$rule_file" ] || continue
+    ln -sf "$rule_file" "/mnt/code/.cursor/rules/$(basename "$rule_file")" 2&gt;/dev/null || true
+done
+
+# Copilot instructions
+for inst_file in "$ORG_SKILLS"/copilot-instructions/*.instructions.md; do
+    [ -f "$inst_file" ] || continue
+    ln -sf "$inst_file" "/mnt/code/.github/instructions/$(basename "$inst_file")" 2&gt;/dev/null || true
+done</code></pre>
+
+  <p>Every project that mounts this repo picks up your org skills automatically on workspace start.</p>
+
+  <h3>System Prompt vs. Skills</h3>
+
+  <p><strong>System prompt file</strong> (<code>CLAUDE.md</code> / <code>AGENTS.md</code> / steering / instructions): universal rules for every conversation --- platform behavior, path conventions, compliance.</p>
+
+  <p><strong>Skills / rules</strong>: context-specific knowledge for a particular workflow. If a rule only applies when running a specific pipeline or tool, it belongs in a skill.</p>
+
+  <hr>
+
+  <h2>Part 5: Extending Further</h2>
+
+  <h3>Custom MCP Servers</h3>
+
+  <p>Most teams will not need this initially; skills cover a wide range of use cases. Write a custom MCP server when you need the agent to take actions against an internal system at runtime: querying a proprietary database, submitting to an internal API, fetching from a data catalog.</p>
+
+  <p>A minimal MCP server using FastMCP:</p>
+
+  <pre><code class="language-python">from fastmcp import FastMCP
+import requests, os
+
+mcp = FastMCP("server-1")
+
+def _auth():
+    if os.environ.get("DOMINO_API_HOST"):  # inside a Domino workspace
+        token = requests.get(
+            "http://localhost:8899/access-token", timeout=5
+        ).text.strip()
+        return {"Authorization": f"Bearer {token}"}
+    return {"X-Domino-Api-Key": os.environ.get("DOMINO_API_KEY", "")}
+
+@mcp.tool()
+def tool_1(query: str) -&gt; dict:
+    """Query internal-system-1. Returns matching results with locations."""
+    resp = requests.post(
+        "https://internal-system-1.myorg.net/api/search",
+        json={"query": query},
+        headers=_auth(),
+        timeout=30,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+if __name__ == "__main__":
+    mcp.run()</code></pre>
+
+  <p>The MCP server code is <strong>fully agent-agnostic</strong> --- the same Python server works with every agent. Only the configuration file that points to it differs (see agent appendices for the exact format).</p>
+
+  <p>Key principles: one tool per action, precise docstrings (the agent reads them to decide when to call the tool), return structured data, include clickable URLs in responses when your tool creates something with a UI.</p>
+
+  <h3>Slash Commands (Claude Code specific)</h3>
+
+  <p>For repetitive multi-step workflows in Claude Code, add slash commands to <code>.claude/commands/</code>. Users type <code>/command-name</code> and Claude expands it to a full set of instructions. Good candidates: initializing new jobs from templates, scaffolding experiments with standard MLflow setup, generating data access request templates.</p>
+
+  <hr>
+
+  <h2>Part 6: Quick Reference</h2>
+
+  <h3>Configuration files by agent</h3>
+
+  <table>
+    <thead>
+      <tr>
+        <th></th>
+        <th>Claude Code</th>
+        <th>Codex</th>
+        <th>Cursor</th>
+        <th>Kiro</th>
+        <th>Copilot (VS Code)</th>
+        <th>Copilot (CLI)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>System prompt</strong></td>
+        <td><code>CLAUDE.md</code></td>
+        <td><code>AGENTS.md</code></td>
+        <td><code>.cursor/rules/*.mdc</code></td>
+        <td><code>.kiro/steering/*.md</code></td>
+        <td><code>.github/copilot-instructions.md</code></td>
+        <td><code>.github/copilot-instructions.md</code></td>
+      </tr>
+      <tr>
+        <td><strong>MCP config</strong></td>
+        <td><code>.mcp.json</code></td>
+        <td><code>.codex/config.toml</code></td>
+        <td><code>.cursor/mcp.json</code></td>
+        <td><code>.kiro/settings/mcp.json</code></td>
+        <td><code>.vscode/mcp.json</code></td>
+        <td><code>~/.copilot/mcp-config.json</code></td>
+      </tr>
+      <tr>
+        <td><strong>Skills</strong></td>
+        <td><code>.claude/skills/</code></td>
+        <td><code>.agents/skills/</code></td>
+        <td><code>.cursor/rules/</code></td>
+        <td><code>.kiro/skills/</code></td>
+        <td><code>.github/instructions/</code></td>
+        <td><code>.github/instructions/</code></td>
+      </tr>
+      <tr>
+        <td><strong>Settings</strong></td>
+        <td><code>.claude/settings.json</code></td>
+        <td><code>.codex/config.toml</code></td>
+        <td>IDE settings</td>
+        <td>IDE settings</td>
+        <td><code>.vscode/settings.json</code></td>
+        <td><code>~/.copilot/config.yml</code></td>
+      </tr>
+      <tr>
+        <td><strong>Install</strong></td>
+        <td><code>curl | bash</code> or <code>npm</code></td>
+        <td><code>npm i -g @openai/codex</code></td>
+        <td>Desktop app</td>
+        <td>Desktop app / CLI</td>
+        <td>VS Code extension</td>
+        <td><code>gh extension install github/gh-copilot</code></td>
+      </tr>
+      <tr>
+        <td><strong>Runtime</strong></td>
+        <td>CLI (terminal)</td>
+        <td>CLI (terminal)</td>
+        <td>IDE extension</td>
+        <td>IDE + CLI</td>
+        <td>IDE extension + CLI</td>
+        <td>CLI</td>
+      </tr>
+      <tr>
+        <td><strong>Skills standard</strong></td>
+        <td>Agent Skills</td>
+        <td>Agent Skills</td>
+        <td><code>.mdc</code> rules</td>
+        <td>Agent Skills</td>
+        <td><code>.instructions.md</code></td>
+        <td><code>.instructions.md</code></td>
+      </tr>
+      <tr>
+        <td><strong>MCP root key</strong></td>
+        <td><code>mcpServers</code></td>
+        <td><code>[mcp_servers]</code></td>
+        <td><code>mcpServers</code></td>
+        <td><code>mcpServers</code></td>
+        <td><code>servers</code></td>
+        <td><code>mcpServers</code></td>
+      </tr>
+    </tbody>
+  </table>
+
+</div>
+</body>
+</html>

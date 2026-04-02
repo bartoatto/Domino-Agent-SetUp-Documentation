@@ -1,0 +1,292 @@
+/* Domino Data Lab Design System — Documentation Theme */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  /* Domino brand tokens */
+  --domino-primary: #543FDE;
+  --domino-primary-hover: #3B23D1;
+  --domino-primary-active: #311EAE;
+  --domino-nav-bg: #2E2E38;
+  --domino-text: #2E2E38;
+  --domino-text-secondary: #65657B;
+  --domino-text-tertiary: #8F8FA3;
+  --domino-success: #28A464;
+  --domino-warning: #CCB718;
+  --domino-error: #C20A29;
+  --domino-info: #0070CC;
+  --domino-bg: #FFFFFF;
+  --domino-bg-layout: #FAFAFA;
+  --domino-border: #E0E0E0;
+  --domino-radius: 4px;
+  --domino-radius-lg: 8px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: Inter, Lato, 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--domino-text);
+  background: var(--domino-bg);
+}
+
+/* ── Top navigation bar (44px, dark) ── */
+.nav-bar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  height: 44px;
+  background: var(--domino-nav-bg);
+  padding: 0 24px;
+  gap: 24px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.nav-bar img.logo {
+  height: 24px;
+  margin-right: 8px;
+}
+
+.nav-bar .separator {
+  color: #65657B;
+  margin: 0 4px;
+}
+
+.nav-bar a {
+  color: rgba(255, 255, 255, 0.7);
+  text-decoration: none;
+  transition: color 0.15s;
+  white-space: nowrap;
+}
+
+.nav-bar a:hover,
+.nav-bar a.active {
+  color: #FFFFFF;
+}
+
+.nav-bar .nav-links {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+/* ── Content area ── */
+.content {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 32px 40px 64px;
+}
+
+/* ── Typography ── */
+h1 {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--domino-text);
+  margin-top: 40px;
+  margin-bottom: 8px;
+  letter-spacing: -0.3px;
+}
+
+h1:first-child { margin-top: 0; }
+
+.subtitle {
+  color: var(--domino-text-secondary);
+  font-size: 15px;
+  margin-bottom: 24px;
+}
+
+h2 {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--domino-text);
+  margin-top: 48px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--domino-primary);
+}
+
+h3 {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--domino-text);
+  margin-top: 32px;
+  margin-bottom: 8px;
+}
+
+h4 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--domino-text-secondary);
+  margin-top: 24px;
+  margin-bottom: 6px;
+}
+
+p {
+  margin-bottom: 12px;
+}
+
+/* ── Links ── */
+a {
+  color: var(--domino-primary);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--domino-primary-hover);
+  text-decoration: underline;
+}
+
+/* ── Inline code ── */
+code {
+  background: #F3F0FF;
+  border: 1px solid #DDD8F7;
+  border-radius: var(--domino-radius);
+  padding: 1px 6px;
+  font-size: 12.5px;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  color: var(--domino-primary-active);
+}
+
+/* ── Code blocks ── */
+pre {
+  background: var(--domino-nav-bg);
+  color: #E8E8ED;
+  border-radius: var(--domino-radius-lg);
+  padding: 16px 20px;
+  overflow-x: auto;
+  font-size: 13px;
+  line-height: 1.55;
+  margin: 12px 0 16px;
+}
+
+pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font-size: inherit;
+}
+
+/* ── Syntax highlights (minimal) ── */
+pre .comment { color: #8F8FA3; }
+pre .keyword { color: #A78BFA; }
+pre .string  { color: #6EE7B7; }
+
+/* ── Tables ── */
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 12px 0 16px;
+  font-size: 13px;
+}
+
+th {
+  background: var(--domino-bg-layout);
+  color: var(--domino-text);
+  font-weight: 600;
+  text-align: left;
+  padding: 8px 12px;
+  border: 1px solid var(--domino-border);
+}
+
+td {
+  padding: 7px 12px;
+  border: 1px solid var(--domino-border);
+  vertical-align: top;
+}
+
+tr:nth-child(even) td {
+  background: #FBFBFD;
+}
+
+/* ── File trees ── */
+.file-tree {
+  background: var(--domino-bg-layout);
+  border: 1px solid var(--domino-border);
+  border-radius: var(--domino-radius-lg);
+  padding: 16px 20px;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.65;
+  white-space: pre;
+  overflow-x: auto;
+  margin: 12px 0 16px;
+  color: var(--domino-text);
+}
+
+/* ── Blockquotes / callouts ── */
+blockquote {
+  border-left: 3px solid var(--domino-primary);
+  background: #F8F7FF;
+  margin: 16px 0;
+  padding: 12px 16px;
+  border-radius: 0 var(--domino-radius) var(--domino-radius) 0;
+  color: var(--domino-text);
+  font-size: 13.5px;
+}
+
+blockquote p { margin-bottom: 4px; }
+blockquote p:last-child { margin-bottom: 0; }
+
+blockquote strong {
+  color: var(--domino-primary-active);
+}
+
+/* ── Lists ── */
+ul, ol {
+  padding-left: 24px;
+  margin-bottom: 12px;
+}
+
+li {
+  margin-bottom: 4px;
+}
+
+li code {
+  font-size: 12px;
+}
+
+/* ── Horizontal rules ── */
+hr {
+  border: none;
+  border-top: 1px solid var(--domino-border);
+  margin: 40px 0;
+}
+
+/* ── Badges / tags ── */
+.badge {
+  display: inline-block;
+  background: #F3F0FF;
+  color: var(--domino-primary);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ── Responsive ── */
+@media (max-width: 700px) {
+  .content { padding: 20px 16px 40px; }
+  .nav-bar { padding: 0 12px; gap: 12px; font-size: 12px; }
+  .nav-bar .nav-links { gap: 12px; }
+  table { font-size: 12px; }
+  pre { font-size: 12px; padding: 12px; }
+  h1 { font-size: 24px; }
+  h2 { font-size: 19px; }
+}
+
+/* ── Print ── */
+@media print {
+  .nav-bar { display: none; }
+  .content { max-width: 100%; padding: 16px; }
+  pre { background: #F0F0F0; color: #333; border: 1px solid #ccc; }
+  a { color: var(--domino-primary); }
+  h1, h2, h3 { page-break-after: avoid; }
+  pre, table, .file-tree { page-break-inside: avoid; }
+}
