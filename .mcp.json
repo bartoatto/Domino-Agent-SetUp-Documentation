@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "domino_server": {
+      "command": "python",
+      "args": ["/mnt/imported/code/domino_mcp_server/domino_mcp_server.py"],
+      "env": {
+        "DOMINO_API_KEY": "${DOMINO_USER_API_KEY}",
+        "DOMINO_HOST": "${DOMINO_API_HOST}"
+      }
+    }
+  }
+}
