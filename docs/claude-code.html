@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Claude Code on Domino</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="nav-bar">
+  <img src="domino-logo.svg" alt="Domino" class="logo">
+  <span class="separator">|</span>
+  <div class="nav-links">
+    <a href="index.html">Overview</a>
+    <a href="claude-code.html" class="active">Claude Code</a>
+    <a href="codex.html">Codex</a>
+    <a href="cursor.html">Cursor</a>
+    <a href="kiro.html">Kiro</a>
+    <a href="copilot.html">Copilot</a>
+  </div>
+</div>
+<div class="content">
+
+  <h1>Claude Code on Domino</h1>
+  <p class="subtitle">Agent-specific configuration for Claude Code</p>
+
+  <p>
+    <a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a> is Anthropic's agentic CLI
+    that runs in the terminal. It can take actions on your behalf: running workflows, querying systems,
+    analyzing data, and generating outputs. Out of the box, it has no knowledge of Domino, your internal
+    tooling, or your domain. This page shows how to close that gap.
+  </p>
+
+  <blockquote>
+    <p><strong>Note:</strong> The shared setup &mdash; the Domino plugin, common Dockerfile dependencies,
+    and the project template concept &mdash; is covered on the
+    <a href="index.html">Overview</a> page. This page focuses on the Claude Code-specific configuration.</p>
+  </blockquote>
+
+  <!-- ────────────────────────────────────────────── -->
+  <h2>Template Files</h2>
+
+  <p>The project template ships with four files that wire Claude Code to the Domino platform:</p>
+
+  <div class="file-tree">/mnt/code/
+├── CLAUDE.md                          ← System prompt (read every session)
+├── domino_project_settings.md         ← Project name/user (shared)
+├── .mcp.json                          ← MCP server config
+└── .claude/
+    └── settings.json                  ← Plugin reference + permissions</div>
+
+  <table>
+    <thead>
+      <tr><th>File</th><th>Purpose</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>CLAUDE.md</code></td>
+        <td>Read automatically at the start of every Claude Code session. Tells Claude what it is, what it can do, and how to behave. Update it as your skills evolve.</td>
+      </tr>
+      <tr>
+        <td><code>.claude/settings.json</code></td>
+        <td>Loads the Domino plugin via the <code>"plugins"</code> key and grants permissions Claude needs (git, python, pip, claude).</td>
+      </tr>
+      <tr>
+        <td><code>.mcp.json</code></td>
+        <td>Starts the Domino MCP server at workspace launch. Provides runtime tools like <code>run_domino_job</code>, <code>check_domino_job_run_status</code>, file sync utilities, and more.</td>
+      </tr>
+      <tr>
+        <td><code>domino_project_settings.md</code></td>
+        <td>Tells the MCP server which Domino project to operate against. Auto-populated at workspace start by the pre-run script.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ────────────────────────────────────────────── -->
+  <h2>Environment Setup</h2>
+
+  <p>Claude Code needs to be available in the workspace. There are two options depending on network access.</p>
+
+  <h3>Option A: Open Internet (Pre-Run Script)</h3>
+  <p>Claude Code is installed fresh at every workspace start, meaning it is always up to date. No image rebuild needed.</p>
+  <pre><code>curl -fsSL https://claude.ai/install.sh | bash</code></pre>
+  <p>This is handled automatically by the pre-run script (see below). The Dockerfile only needs the supporting directories and dependencies.</p>
+
+  <h3>Option B: Air-Gapped (Dockerfile)</h3>
+  <p>Claude Code is baked into the image at build time. To update, rebuild the image.</p>
+  <pre><code><span class="comment"># Install Claude Code into the image</span>
+USER ubuntu
+RUN curl -fsSL https://claude.ai/install.sh | bash
+ENV PATH="/home/ubuntu/.claude/bin:/home/ubuntu/.local/bin:$PATH"</code></pre>
+
+  <h3>Required Directories (Both Options)</h3>
+  <p>The Dockerfile must create the directories Claude Code expects:</p>
+  <pre><code><span class="comment"># Create directories for Claude Code</span>
+RUN mkdir -p /home/ubuntu/.claude /commandhistory && \
+    chown -R ubuntu:ubuntu /home/ubuntu/.claude /commandhistory
+ENV PATH="/home/ubuntu/.claude/bin:/home/ubuntu/.local/bin:$PATH"</code></pre>
+
+  <h3>MCP Server Dependencies</h3>
+  <p>The MCP server requires these Python packages (install in the Dockerfile):</p>
+  <pre><code>RUN pip install --no-cache-dir fastmcp requests python-dotenv</code></pre>
+
+  <!-- ────────────────────────────────────────────── -->
+  <h2>Pre-Run Script</h2>
+
+  <p>
+    The pre-run script runs automatically at every workspace start. It handles installation,
+    per-user persistent storage, plugin discovery, and project settings. Add this as the workspace
+    pre-run script in your Domino environment or project settings.
+  </p>
+
+  <pre><code><span class="comment">#!/bin/bash
+# start_workspace.sh — Domino pre-run script for Claude Code
+# Handles installation, per-user persistence, and plugin discovery.
+# Run once automatically at workspace start.
+#
+# Security: OAuth credentials (~/.claude/.credentials.json) are scrubbed
+# on each cold start to prevent token leakage via shared /mnt/artifacts.
+# Preferences (~/.claude.json) are safe to persist — they contain no secrets.</span>
+
+set -e
+
+echo "=== Claude Code Workspace Setup ==="
+
+<span class="comment"># ── 1. Install Claude Code if not present ──</span>
+<span class="keyword">if</span> ! command -v claude &amp;&gt; /dev/null; <span class="keyword">then</span>
+    echo "[!] Claude Code not found. Installing via native installer..."
+    curl -fsSL https://claude.ai/install.sh | bash
+    export PATH="$HOME/.local/bin:$PATH"
+<span class="keyword">fi</span>
+
+echo "[✓] Claude Code version: $(claude --version 2&gt;/dev/null || echo 'installed')"
+
+<span class="comment"># ── 2. Determine per-user persistent storage ──</span>
+<span class="keyword">if</span> [ -n "$DOMINO_USER_NAME" ]; <span class="keyword">then</span>
+    PERSIST_USER="$DOMINO_USER_NAME"
+<span class="keyword">else</span>
+    PERSIST_USER="$USER"
+    echo "[!] DOMINO_USER_NAME not set, falling back to: $PERSIST_USER"
+<span class="keyword">fi</span>
+
+PERSIST_DIR=<span class="string">"/mnt/artifacts/.claude-users/${PERSIST_USER}/.claude"</span>
+mkdir -p "$PERSIST_DIR"
+echo "[i] Persistent storage: $PERSIST_DIR"
+
+<span class="comment"># ── 3. Symlink ~/.claude to persistent storage ──</span>
+HOME_CLAUDE="$HOME/.claude"
+
+<span class="keyword">if</span> [ -d "$HOME_CLAUDE" ] &amp;&amp; [ ! -L "$HOME_CLAUDE" ]; <span class="keyword">then</span>
+    echo "[i] Migrating existing ~/.claude to persistent storage..."
+    cp -r "$HOME_CLAUDE/"* "$PERSIST_DIR/" 2&gt;/dev/null || true
+    rm -rf "$HOME_CLAUDE"
+<span class="keyword">fi</span>
+
+[ -L "$HOME_CLAUDE" ] &amp;&amp; [ ! -e "$HOME_CLAUDE" ] &amp;&amp; rm -f "$HOME_CLAUDE"
+
+<span class="keyword">if</span> [ ! -L "$HOME_CLAUDE" ]; <span class="keyword">then</span>
+    ln -s "$PERSIST_DIR" "$HOME_CLAUDE"
+    echo "[✓] ~/.claude symlinked to $PERSIST_DIR"
+<span class="keyword">else</span>
+    echo "[✓] ~/.claude persistence already configured"
+<span class="keyword">fi</span>
+
+<span class="comment"># ── 4. Force fresh authentication ──</span>
+rm -f "$HOME/.claude/.credentials.json" 2&gt;/dev/null || true
+rm -f "$HOME/.claude/backups/.claude.json.backup."* 2&gt;/dev/null || true
+echo "[✓] Cleared OAuth credentials — you will need to re-authenticate"
+
+<span class="comment"># ── 5. Persist ~/.claude.json (preferences, not secrets) ──</span>
+PERSIST_JSON=<span class="string">"/mnt/artifacts/.claude-users/${PERSIST_USER}/.claude.json"</span>
+HOME_JSON="$HOME/.claude.json"
+
+<span class="keyword">if</span> [ ! -f "$PERSIST_JSON" ]; <span class="keyword">then</span>
+    <span class="keyword">if</span> [ -f "$HOME_JSON" ] &amp;&amp; [ ! -L "$HOME_JSON" ]; <span class="keyword">then</span>
+        cp "$HOME_JSON" "$PERSIST_JSON"
+    <span class="keyword">else</span>
+        echo '{}' &gt; "$PERSIST_JSON"
+    <span class="keyword">fi</span>
+<span class="keyword">fi</span>
+
+rm -f "$HOME_JSON" 2&gt;/dev/null || true
+
+<span class="keyword">if</span> [ ! -L "$HOME_JSON" ]; <span class="keyword">then</span>
+    ln -s "$PERSIST_JSON" "$HOME_JSON"
+    echo "[✓] ~/.claude.json symlinked to $PERSIST_JSON"
+<span class="keyword">else</span>
+    echo "[✓] ~/.claude.json persistence already configured"
+<span class="keyword">fi</span>
+
+<span class="comment"># ── 6. Register plugins (skills, commands, agents, output-styles) ──</span>
+PLUGIN_DIR=<span class="string">"/mnt/imported/code/domino-data-lab-plugin"</span>
+
+mkdir -p /mnt/code/.claude/skills
+<span class="keyword">for</span> skill_dir <span class="keyword">in</span> "$PLUGIN_DIR"/skills/*/; <span class="keyword">do</span>
+    skill_name=$(basename "$skill_dir")
+    ln -sf "$skill_dir" "/mnt/code/.claude/skills/$skill_name" 2&gt;/dev/null || true
+<span class="keyword">done</span>
+
+mkdir -p /mnt/code/.claude/commands
+<span class="keyword">for</span> cmd_file <span class="keyword">in</span> "$PLUGIN_DIR"/commands/*.md; <span class="keyword">do</span>
+    [ -f "$cmd_file" ] || continue
+    ln -sf "$cmd_file" "/mnt/code/.claude/commands/$(basename "$cmd_file")" 2&gt;/dev/null || true
+<span class="keyword">done</span>
+
+mkdir -p /mnt/code/.claude/agents
+<span class="keyword">for</span> agent_file <span class="keyword">in</span> "$PLUGIN_DIR"/agents/*.md; <span class="keyword">do</span>
+    [ -f "$agent_file" ] || continue
+    ln -sf "$agent_file" "/mnt/code/.claude/agents/$(basename "$agent_file")" 2&gt;/dev/null || true
+<span class="keyword">done</span>
+
+mkdir -p /mnt/code/.claude/output-styles
+<span class="keyword">for</span> style_file <span class="keyword">in</span> "$PLUGIN_DIR"/output-styles/*.md; <span class="keyword">do</span>
+    [ -f "$style_file" ] || continue
+    ln -sf "$style_file" \
+      "/mnt/code/.claude/output-styles/$(basename "$style_file")" 2&gt;/dev/null || true
+<span class="keyword">done</span>
+
+echo "[✓] Registered $(ls /mnt/code/.claude/skills/ 2&gt;/dev/null | wc -l) skills, \
+$(ls /mnt/code/.claude/commands/ 2&gt;/dev/null | wc -l) commands, \
+$(ls /mnt/code/.claude/agents/ 2&gt;/dev/null | wc -l) agents"
+
+<span class="comment"># ── 7. Populate domino_project_settings.md from environment ──</span>
+<span class="keyword">if</span> [ -f "/mnt/code/domino_project_settings.md" ] &amp;&amp; \
+   [ -n "$DOMINO_PROJECT_NAME" ] &amp;&amp; [ -n "$DOMINO_USER_NAME" ]; <span class="keyword">then</span>
+    cat &gt; /mnt/code/domino_project_settings.md &lt;&lt; EOF
+# Domino project settings to use with the MCP server domino_server
+project_name="${DOMINO_PROJECT_NAME}"
+user_name="${DOMINO_USER_NAME}"
+EOF
+    echo "[✓] domino_project_settings.md populated from environment"
+<span class="keyword">fi</span>
+
+echo "=== Claude Code setup complete ==="</code></pre>
+
+  <h4>What the script handles</h4>
+  <ol>
+    <li><strong>Install Claude Code</strong> &mdash; if <code>claude</code> is not on the PATH, installs it via the official installer.</li>
+    <li><strong>Per-user persistent storage</strong> &mdash; symlinks <code>~/.claude</code> to <code>/mnt/artifacts/.claude-users/$USER/.claude</code> so settings survive workspace restarts.</li>
+    <li><strong>Force fresh authentication</strong> &mdash; scrubs OAuth credentials (<code>.credentials.json</code>) on each cold start to prevent token leakage via shared artifacts.</li>
+    <li><strong>Persist preferences</strong> &mdash; symlinks <code>~/.claude.json</code> to persistent storage. Preferences contain no secrets and are safe to persist.</li>
+    <li><strong>Register plugins</strong> &mdash; symlinks skills, commands, agents, and output-styles from the Domino plugin into the project's <code>.claude/</code> directory.</li>
+    <li><strong>Populate project settings</strong> &mdash; writes <code>$DOMINO_PROJECT_NAME</code> and <code>$DOMINO_USER_NAME</code> into <code>domino_project_settings.md</code>.</li>
+  </ol>
+
+  <!-- ────────────────────────────────────────────── -->
+  <h2>Template File Contents</h2>
+
+  <h3>.claude/settings.json</h3>
+  <p>Loads the Domino plugin and grants the permissions Claude needs:</p>
+  <pre><code>{
+  <span class="string">"plugins"</span>: [
+    <span class="string">"/mnt/imported/code/domino-data-lab-plugin"</span>
+  ],
+  <span class="string">"permissions"</span>: {
+    <span class="string">"allow"</span>: [
+      <span class="string">"Bash(git *)"</span>,
+      <span class="string">"Bash(python *)"</span>,
+      <span class="string">"Bash(pip *)"</span>,
+      <span class="string">"Bash(claude *)"</span>
+    ]
+  }
+}</code></pre>
+
+  <h3>.mcp.json</h3>
+  <p>Starts the Domino MCP server from the imported repo. Environment variables are injected automatically by Domino:</p>
+  <pre><code>{
+  <span class="string">"mcpServers"</span>: {
+    <span class="string">"domino_server"</span>: {
+      <span class="string">"command"</span>: <span class="string">"python"</span>,
+      <span class="string">"args"</span>: [<span class="string">"/mnt/imported/code/domino-data-lab-plugin/mcp-servers/domino_mcp_server/domino_mcp_server.py"</span>],
+      <span class="string">"env"</span>: {
+        <span class="string">"DOMINO_API_KEY"</span>: <span class="string">"${DOMINO_USER_API_KEY}"</span>,
+        <span class="string">"DOMINO_HOST"</span>: <span class="string">"${DOMINO_API_HOST}"</span>
+      }
+    }
+  }
+}</code></pre>
+
+  <h3>domino_project_settings.md</h3>
+  <p>Auto-populated at workspace start by the pre-run script. Users do not need to edit this file.</p>
+  <pre><code><span class="comment"># Domino project settings to use with the MCP server domino_server</span>
+project_name=<span class="string">"$DOMINO_PROJECT_NAME"</span>
+user_name=<span class="string">"$DOMINO_USER_NAME"</span></code></pre>
+
+  <h3>CLAUDE.md</h3>
+  <p>The persistent system prompt for Claude Code, read automatically at every session. Start with the core Domino platform rules below and extend with your organization's requirements.</p>
+  <pre><code><span class="comment"># Project Instructions for Claude Code</span>
+
+You are a Domino Data Lab powered agentic tool that helps run tasks
+and workflows on the Domino Data Lab platform on behalf of the user
+using available tool functions provided by the domino_server MCP server.
+
+
+<span class="comment">## Domino Project Settings</span>
+
+Before making any MCP tool calls, read `domino_project_settings.md` to
+get the `project_name` and `user_name`. If they contain placeholder
+values, **immediately update the file** with the real values from
+environment variables (do not wait to be asked):
+- Project name: `$DOMINO_PROJECT_NAME`
+- Username: `$DOMINO_USER_NAME`
+
+This must also happen automatically at `/init` time.
+
+
+<span class="comment">## MCP Server</span>
+
+The `domino_server` MCP is configured in `.mcp.json` and requires
+`DOMINO_API_KEY` and `DOMINO_HOST` environment variables. Available tools:
+- `run_domino_job` — run a script as a Domino job
+- `check_domino_job_run_status` / `check_domino_job_run_results` — poll
+  and retrieve job output
+- `list_domino_project_files` — browse project files
+- `sync_local_file_to_domino` / `smart_sync_file` /
+  `upload_file_to_domino_project` /
+  `download_file_from_domino_project` — file sync
+- `get_domino_environment_info` — inspect compute environments
+- `open_web_browser` — open Domino URLs
+
+
+<span class="comment">## Core Behavior</span>
+
+- For training or data extraction tasks, run commands as Domino jobs
+  rather than in the local terminal. This ensures governance,
+  reproducibility, and audit trails.
+- The Domino project name and user name are in
+  domino_project_settings.md. Read this file before making any MCP
+  tool calls.
+- When running a job, always check its status and results if completed,
+  and briefly explain any conclusions from the result of the job run.
+- If a job result includes an MLflow or experiment run URL, share that
+  URL with the user.
+
+
+<span class="comment">## Data Access</span>
+
+- Project data is accessible under /mnt/data/{PROJECT_NAME}/ (local
+  dataset) or /mnt/imported/data/ (shared/imported datasets).
+- Before using a dataset, run a job to list all folder contents
+  recursively to understand the full path to dataset files.
+- Always create scripts to understand and transform data via job runs.
+- Analytical outputs should be in plain text tabular format sent to
+  stdout for easy result checking.
+
+
+<span class="comment">## Git Discipline</span>
+
+- Always check for uncommitted changes before running Domino jobs.
+- You must commit and push changes before running any Domino jobs,
+  because Domino executes against the remote repository state.
+
+
+<span class="comment">## App Development</span>
+
+- When building Domino apps, bind to 0.0.0.0 (not localhost).
+- Use base: './' in Vite config for React apps behind Domino proxy.
+- Create an app.sh as the launch file entry point.</code></pre>
+
+  <!-- ────────────────────────────────────────────── -->
+  <h2>Skills Format</h2>
+
+  <p>
+    Claude Code uses the <strong>Agent Skills</strong> standard. Skills are Markdown files placed in
+    <code>.claude/skills/&lt;skill-name&gt;/SKILL.md</code>. The Domino plugin ships 20 platform
+    skills; your team adds domain-specific skills alongside them.
+  </p>
+
+  <h3>SKILL.md Anatomy</h3>
+  <pre><code>---
+name: skill-name
+description: What this skill covers and when Claude should use it.
+---
+
+<span class="comment"># Skill Name</span>
+
+<span class="comment">## Overview</span>
+Brief description of what this skill is for.
+
+<span class="comment">## Key tools</span>
+List the MCP tools or packages Claude should use for this domain.
+
+<span class="comment">## How to run [your workflow]</span>
+A short code example or step-by-step for the most common task.
+
+<span class="comment">## Rules</span>
+- Data input/output paths
+- Naming conventions
+- Compliance constraints specific to this workflow
+
+<span class="comment">## Common errors and fixes</span>
+Known failure modes and how to resolve them.</code></pre>
+
+  <p>
+    The <code>description</code> field in the frontmatter is what Claude uses to decide when to load
+    the skill. Write it as a specific, action-oriented sentence. Skills load only when relevant.
+  </p>
+
+  <h3>CLAUDE.md vs. Skills</h3>
+  <table>
+    <thead>
+      <tr><th>File</th><th>Scope</th><th>When to use</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>CLAUDE.md</code></td>
+        <td>Universal</td>
+        <td>Rules for every conversation: platform behavior, path conventions, compliance.</td>
+      </tr>
+      <tr>
+        <td><code>SKILL.md</code></td>
+        <td>Context-specific</td>
+        <td>Knowledge for a particular workflow. If a rule only applies when running a specific pipeline or tool, it belongs in a skill.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ────────────────────────────────────────────── -->
+  <h2>Complete Template</h2>
+
+  <p>Once the template is set up and the pre-run script has run, a fully built-out project looks like this:</p>
+
+  <div class="file-tree">/mnt/code/
+├── CLAUDE.md                     ← Platform rules, data paths, compliance
+├── domino_project_settings.md    ← project_name and user_name
+├── .mcp.json                     ← MCP server config
+└── .claude/
+    ├── settings.json             ← References shared Domino plugin
+    ├── agents/                   ← Symlinked from Domino plugin
+    ├── commands/                 ← Symlinked from Domino plugin
+    ├── output-styles/            ← Symlinked from Domino plugin
+    └── skills/
+        ├── [domino platform skills, symlinked from plugin]
+        ├── etl-pipeline/SKILL.md     ← Your workflow
+        ├── data-sources/SKILL.md     ← Your data access patterns
+        └── compliance/SKILL.md       ← Your governance rules</div>
+
+  <p>
+    The Domino plugin skills, commands, agents, and output-styles are symlinked from
+    <code>/mnt/imported/code/domino-data-lab-plugin</code> at workspace start. Your team's
+    domain-specific skills are committed directly to the project repository.
+  </p>
+
+  <!-- ────────────────────────────────────────────── -->
+  <h2>Extending</h2>
+
+  <h3>Slash Commands</h3>
+  <p>
+    For repetitive multi-step workflows, add slash commands to <code>.claude/commands/</code>.
+    Users type <code>/command-name</code> and Claude expands it to a full set of instructions.
+    Good candidates: initializing new jobs from templates, scaffolding experiments with standard
+    MLflow setup, generating data access request templates.
+  </p>
+
+  <h3>Custom MCP Servers</h3>
+  <p>
+    Write a custom MCP server when you need Claude to take actions against an internal system
+    at runtime: querying a proprietary database, submitting to an internal API, fetching from
+    a data catalog. Register it by adding an entry to the <code>mcpServers</code> key in
+    <code>.mcp.json</code>:
+  </p>
+  <pre><code>{
+  <span class="string">"mcpServers"</span>: {
+    <span class="string">"domino_server"</span>: { ... },
+    <span class="string">"your_server"</span>: {
+      <span class="string">"command"</span>: <span class="string">"python"</span>,
+      <span class="string">"args"</span>: [<span class="string">".claude/mcp-servers/your_server/your_server.py"</span>]
+    }
+  }
+}</code></pre>
+
+  <!-- ────────────────────────────────────────────── -->
+  <h2>Verification</h2>
+
+  <p>To verify the setup is working:</p>
+  <ol>
+    <li>Create a new project from the template.</li>
+    <li>Start an IDE workspace and open a terminal.</li>
+    <li>Run <code>claude</code> in the terminal.</li>
+    <li>Ask: <strong>"What Domino skills do you have?"</strong></li>
+  </ol>
+  <p>
+    Claude should respond with the Domino platform skills from the plugin. If it does, the
+    template is working correctly. Team members who create new projects from the template only
+    need to add their domain skills to <code>.claude/skills/</code>.
+  </p>
+
+  <!-- ────────────────────────────────────────────── -->
+  <h2>Resources</h2>
+
+  <ul>
+    <li><a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code official documentation</a></li>
+    <li><a href="https://docs.anthropic.com/en/docs/claude-code/skills">Claude Code skills guide</a></li>
+    <li><a href="https://github.com/dominodatalab/domino-claude-plugin">Domino Claude Plugin repository</a></li>
+  </ul>
+
+</div>
+</body>
+</html>

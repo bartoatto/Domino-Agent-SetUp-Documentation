@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Codex on Domino</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="nav-bar">
+  <img src="domino-logo.svg" alt="Domino" class="logo">
+  <span class="separator">|</span>
+  <div class="nav-links">
+    <a href="index.html">Overview</a>
+    <a href="claude-code.html">Claude Code</a>
+    <a href="codex.html" class="active">Codex</a>
+    <a href="cursor.html">Cursor</a>
+    <a href="kiro.html">Kiro</a>
+    <a href="copilot.html">Copilot</a>
+  </div>
+</div>
+<div class="content">
+
+  <h1>Codex on Domino</h1>
+  <p class="subtitle">Agent-specific configuration for OpenAI Codex</p>
+
+  <p>
+    <a href="https://developers.openai.com/codex/cli" target="_blank">OpenAI Codex</a> is an agentic coding CLI that runs in the terminal.
+    It reads an <code>AGENTS.md</code> system prompt, connects to MCP servers defined in
+    <code>.codex/config.toml</code>, and discovers skills from <code>.agents/skills/</code>.
+    This page covers the Codex-specific configuration files and setup steps needed to run Codex
+    inside a Domino workspace. For shared concepts (environments, the Domino plugin, domain skills),
+    see the <a href="index.html">Overview</a> page.
+  </p>
+
+  <!-- ────────────────────────────────────────── -->
+  <h2>Part 1: Template Files</h2>
+
+  <p>The Codex template ships with three files:</p>
+
+  <div class="file-tree">/mnt/code/
+├── AGENTS.md                          ← System prompt (read every session)
+├── domino_project_settings.md         ← Project name/user (shared)
+└── .codex/
+    └── config.toml                    ← MCP servers, sandbox, permissions</div>
+
+  <p>
+    <code>AGENTS.md</code> is the equivalent of Claude Code's <code>CLAUDE.md</code>.
+    Codex walks the directory tree from the filesystem root to the current working directory,
+    concatenating every <code>AGENTS.md</code> it finds (up to a 32 KiB limit).
+    An <code>AGENTS.override.md</code> file at any level takes precedence over <code>AGENTS.md</code>
+    at that same level.
+  </p>
+
+  <p>
+    <code>.codex/config.toml</code> is the Codex configuration file (TOML format, not JSON).
+    It declares MCP servers, sandbox mode, and approval policy.
+  </p>
+
+  <p>
+    <code>domino_project_settings.md</code> is the same shared file used by all agents.
+    It tells the MCP server which Domino project to operate against.
+  </p>
+
+  <!-- ────────────────────────────────────────── -->
+  <h2>Part 2: Environment Setup</h2>
+
+  <p>Codex requires <strong>Node.js 22+</strong>. The Domino environment must provide it.</p>
+
+  <h3>Option A: Open Internet</h3>
+  <p>Install Codex fresh at every workspace start via the pre-run script. Always up to date; no image rebuild needed.</p>
+  <pre><code><span class="comment"># Add to Dockerfile instructions (after Node.js 22+ is available)</span>
+
+<span class="comment"># ── Install MCP server dependencies (required) ──</span>
+USER root
+RUN pip install --no-cache-dir fastmcp requests python-dotenv
+USER ubuntu</code></pre>
+  <p>The pre-run script (below) runs <code>npm install -g @openai/codex</code> on each workspace start.</p>
+
+  <h3>Option B: Air-Gapped / Restricted Internet</h3>
+  <p>Bake Codex into the image at build time. To update, rebuild the image.</p>
+  <pre><code><span class="comment"># ── Install Codex into the image ──</span>
+USER root
+RUN npm install -g @openai/codex
+USER ubuntu
+
+<span class="comment"># ── Install MCP server dependencies (required) ──</span>
+USER root
+RUN pip install --no-cache-dir fastmcp requests python-dotenv
+USER ubuntu</code></pre>
+
+  <h3>Authentication</h3>
+  <p>
+    Set <code>OPENAI_API_KEY</code> as a Domino environment variable, or sign in with your
+    ChatGPT account at first run. The API key approach is recommended for non-interactive
+    environments.
+  </p>
+
+  <!-- ────────────────────────────────────────── -->
+  <h2>Part 3: Pre-Run Script</h2>
+
+  <p>
+    The pre-run script is simpler than Claude Code's because Codex has no
+    <code>~/.claude</code> persistence layer to manage. It handles three things:
+    installing Codex if not present, symlinking skills from the plugin, and
+    populating <code>domino_project_settings.md</code>.
+  </p>
+
+  <pre><code><span class="comment">#!/bin/bash</span>
+<span class="comment"># start_workspace.sh — Domino pre-run script for Codex</span>
+<span class="comment"># Run once automatically at workspace start.</span>
+
+<span class="keyword">set</span> -e
+
+echo <span class="string">"=== Codex Workspace Setup ==="</span>
+
+<span class="comment"># ── 1. Install Codex if not present ──</span>
+<span class="keyword">if</span> ! command -v codex &amp;&gt; /dev/null; <span class="keyword">then</span>
+    echo <span class="string">"[!] Codex not found. Installing..."</span>
+    npm install -g @openai/codex
+<span class="keyword">fi</span>
+echo <span class="string">"[ok] Codex: $(codex --version 2&gt;/dev/null || echo 'installed')"</span>
+
+<span class="comment"># ── 2. Symlink skills from plugin ──</span>
+PLUGIN_DIR=<span class="string">"/mnt/imported/code/domino-data-lab-plugin"</span>
+mkdir -p /mnt/code/.agents/skills
+<span class="keyword">for</span> skill_dir <span class="keyword">in</span> <span class="string">"$PLUGIN_DIR"</span>/skills/*/; <span class="keyword">do</span>
+    skill_name=$(basename <span class="string">"$skill_dir"</span>)
+    ln -sf <span class="string">"$skill_dir"</span> <span class="string">"/mnt/code/.agents/skills/$skill_name"</span> 2&gt;/dev/null || true
+<span class="keyword">done</span>
+echo <span class="string">"[ok] Registered $(ls /mnt/code/.agents/skills/ 2&gt;/dev/null | wc -l) skills"</span>
+
+<span class="comment"># ── 3. Populate domino_project_settings.md from environment ──</span>
+<span class="keyword">if</span> [ -f <span class="string">"/mnt/code/domino_project_settings.md"</span> ] &amp;&amp; \
+   [ -n <span class="string">"$DOMINO_PROJECT_NAME"</span> ] &amp;&amp; [ -n <span class="string">"$DOMINO_USER_NAME"</span> ]; <span class="keyword">then</span>
+    cat &gt; /mnt/code/domino_project_settings.md &lt;&lt; EOF
+<span class="comment"># Domino project settings to use with the MCP server domino_server</span>
+project_name=<span class="string">"${DOMINO_PROJECT_NAME}"</span>
+user_name=<span class="string">"${DOMINO_USER_NAME}"</span>
+EOF
+    echo <span class="string">"[ok] domino_project_settings.md populated"</span>
+<span class="keyword">fi</span>
+
+echo <span class="string">"=== Codex setup complete ==="</span></code></pre>
+
+  <!-- ────────────────────────────────────────── -->
+  <h2>Part 4: Template File Contents</h2>
+
+  <h3>.codex/config.toml</h3>
+  <p>
+    Declares the Domino MCP server, sandbox mode, and approval policy.
+    Environment variables are injected automatically by Domino.
+  </p>
+  <pre><code><span class="comment"># Domino MCP Server</span>
+[mcp_servers.domino_server]
+command = <span class="string">"python"</span>
+args = [<span class="string">"/mnt/imported/code/domino-data-lab-plugin/mcp-servers/domino_mcp_server/domino_mcp_server.py"</span>]
+
+[mcp_servers.domino_server.env]
+DOMINO_API_KEY = <span class="string">"${DOMINO_USER_API_KEY}"</span>
+DOMINO_HOST = <span class="string">"${DOMINO_API_HOST}"</span>
+
+<span class="comment"># Sandbox &amp; Approval</span>
+sandbox_mode = <span class="string">"workspace-write"</span>
+approval_policy = <span class="string">"on-request"</span></code></pre>
+
+  <h3>AGENTS.md</h3>
+  <p>
+    The persistent system prompt for Codex. Same Domino platform rules as
+    <code>CLAUDE.md</code>, adapted for Codex's configuration paths.
+  </p>
+  <pre><code><span class="comment"># Project Instructions for Codex</span>
+
+You are a Domino Data Lab powered agentic tool that helps run tasks
+and workflows on the Domino Data Lab platform on behalf of the user
+using available tool functions provided by the domino_server MCP server.
+
+
+<span class="comment">## Domino Project Settings</span>
+
+Before making any MCP tool calls, read `domino_project_settings.md`
+to get the `project_name` and `user_name`. If they contain placeholder
+values, immediately update the file with the real values from
+environment variables:
+- Project name: `$DOMINO_PROJECT_NAME`
+- Username: `$DOMINO_USER_NAME`
+
+
+<span class="comment">## MCP Server</span>
+
+The `domino_server` MCP is configured in `.codex/config.toml` and
+requires `DOMINO_API_KEY` and `DOMINO_HOST` environment variables.
+Available tools:
+- `run_domino_job` — run a script as a Domino job
+- `check_domino_job_run_status` / `check_domino_job_run_results`
+- `list_domino_project_files` — browse project files
+- `sync_local_file_to_domino` / `smart_sync_file`
+- `upload_file_to_domino_project` / `download_file_from_domino_project`
+- `get_domino_environment_info` — inspect compute environments
+- `open_web_browser` — open Domino URLs
+
+
+<span class="comment">## Core Behavior</span>
+
+- For training or data extraction tasks, run commands as Domino jobs
+  rather than in the local terminal. This ensures governance,
+  reproducibility, and audit trails.
+- The Domino project name and user name are in
+  domino_project_settings.md. Read this file before making any
+  MCP tool calls.
+- When running a job, always check its status and results if completed,
+  and briefly explain any conclusions from the result of the job run.
+- If a job result includes an MLflow or experiment run URL, share that
+  URL with the user.
+
+
+<span class="comment">## Data Access</span>
+
+- Project data is accessible under /mnt/data/ or /mnt/imported/data/.
+- Before using a dataset, run a job to list all folder contents
+  recursively to understand the full path to dataset files.
+- Always create scripts to understand and transform data via job runs.
+- Analytical outputs should be in plain text tabular format sent to
+  stdout for easy result checking.
+
+
+<span class="comment">## Git Discipline</span>
+
+- Always check for uncommitted changes before running Domino jobs.
+- You must commit and push changes before running any Domino jobs,
+  because Domino executes against the remote repository state.
+
+
+<span class="comment">## App Development</span>
+
+- When building Domino apps, bind to 0.0.0.0 (not localhost).
+- Use base: './' in Vite config for React apps behind Domino proxy.
+- Create an app.sh as the launch file entry point.</code></pre>
+
+  <h3>domino_project_settings.md</h3>
+  <p>Auto-populated at workspace start by the pre-run script. Users do not edit this file.</p>
+  <pre><code><span class="comment"># Domino project settings to use with the MCP server domino_server</span>
+project_name=<span class="string">"$DOMINO_PROJECT_NAME"</span>
+user_name=<span class="string">"$DOMINO_USER_NAME"</span></code></pre>
+
+  <!-- ────────────────────────────────────────── -->
+  <h2>Part 5: Skills Format</h2>
+
+  <p>
+    Codex uses the <strong>Agent Skills</strong> standard. Skills live in
+    <code>.agents/skills/*/SKILL.md</code> and use the same format as Claude Code:
+  </p>
+
+  <div class="file-tree">.agents/skills/
+├── jobs/SKILL.md
+├── workspaces/SKILL.md
+├── environments/SKILL.md
+├── datasets/SKILL.md
+├── app-deployment/SKILL.md
+├── model-endpoints/SKILL.md
+├── experiment-tracking/SKILL.md
+└── ... (20 Domino platform skills)</div>
+
+  <p>Each <code>SKILL.md</code> has YAML frontmatter with <code>name</code> and <code>description</code> fields:</p>
+  <pre><code>---
+name: jobs
+description: Run and manage Domino Jobs for batch execution.
+---
+
+# Jobs
+
+## Overview
+Create, run, and manage Domino Jobs...
+
+## Key tools
+- `run_domino_job`
+- `check_domino_job_run_status`
+
+## Rules
+- Always commit and push before running a job
+- Check status and results after submission</code></pre>
+
+  <p>
+    Codex discovers skills from three locations:
+  </p>
+  <ul>
+    <li><strong>Repository:</strong> <code>.agents/skills/</code> in the project root</li>
+    <li><strong>User:</strong> <code>~/.agents/skills/</code></li>
+    <li><strong>Admin:</strong> <code>/etc/codex/skills/</code></li>
+  </ul>
+
+  <blockquote>
+    <p><strong>Portability:</strong> Skills using the Agent Skills standard are portable between
+    Claude Code, Codex, and Kiro. The same <code>SKILL.md</code> files work across all three agents.</p>
+  </blockquote>
+
+  <!-- ────────────────────────────────────────── -->
+  <h2>Part 6: The Complete Template</h2>
+
+  <p>After the pre-run script has run, a fully built-out project looks like this:</p>
+
+  <div class="file-tree">/mnt/code/                                ← Your project (Git repo root in Domino)
+├── AGENTS.md                             ← Platform rules, data paths, compliance
+├── domino_project_settings.md            ← project_name and user_name
+├── .codex/
+│   └── config.toml                       ← MCP server config
+└── .agents/
+    └── skills/
+        ├── [domino platform skills, symlinked from plugin]
+        ├── etl-pipeline/SKILL.md         ← your workflow
+        ├── data-sources/SKILL.md         ← your data access patterns
+        ├── internal-apis/SKILL.md        ← your proprietary tools and APIs
+        └── compliance/SKILL.md           ← your governance and regulatory rules</div>
+
+  <p>
+    The Domino plugin skills are symlinked from
+    <code>/mnt/imported/code/domino-data-lab-plugin/skills/</code> into
+    <code>.agents/skills/</code> by the pre-run script. Domain skills are added
+    directly to the project repo or mounted from a shared org repository.
+  </p>
+
+  <!-- ────────────────────────────────────────── -->
+  <h2>Extending</h2>
+
+  <h3>Custom MCP Servers</h3>
+  <p>Add additional <code>[mcp_servers.server_name]</code> sections to <code>.codex/config.toml</code>:</p>
+  <pre><code>[mcp_servers.internal_api]
+command = <span class="string">"python"</span>
+args = [<span class="string">".codex/mcp-servers/internal_api.py"</span>]
+
+[mcp_servers.internal_api.env]
+API_TOKEN = <span class="string">"${INTERNAL_API_TOKEN}"</span></code></pre>
+
+  <h3>Profiles</h3>
+  <p>Define model profiles for different use cases:</p>
+  <pre><code>[profiles.fast]
+model = <span class="string">"gpt-4.1-mini"</span>
+
+[profiles.powerful]
+model = <span class="string">"o3"</span></code></pre>
+
+  <h3>Multi-Agent</h3>
+  <p>Enable multi-agent mode for complex workflows:</p>
+  <pre><code>[features]
+multi_agent = true</code></pre>
+
+  <!-- ────────────────────────────────────────── -->
+  <h2>Verification</h2>
+
+  <p>After setup, open a terminal in your Domino workspace and run:</p>
+  <pre><code>codex</code></pre>
+  <p>Then ask:</p>
+  <blockquote>
+    <p>"What Domino skills do you have?"</p>
+  </blockquote>
+  <p>
+    Codex should list the Domino platform skills from the plugin. If it does,
+    the template is working correctly.
+  </p>
+
+  <!-- ────────────────────────────────────────── -->
+  <h2>Resources</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Resource</th>
+        <th>Link</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Official Docs</td>
+        <td><a href="https://developers.openai.com/codex/cli" target="_blank">developers.openai.com/codex/cli</a></td>
+      </tr>
+      <tr>
+        <td>AGENTS.md Guide</td>
+        <td><a href="https://developers.openai.com/codex/guides/agents-md" target="_blank">developers.openai.com/codex/guides/agents-md</a></td>
+      </tr>
+      <tr>
+        <td>Config Reference</td>
+        <td><a href="https://developers.openai.com/codex/config-reference" target="_blank">developers.openai.com/codex/config-reference</a></td>
+      </tr>
+      <tr>
+        <td>Agent Skills</td>
+        <td><a href="https://developers.openai.com/codex/skills" target="_blank">developers.openai.com/codex/skills</a></td>
+      </tr>
+      <tr>
+        <td>GitHub</td>
+        <td><a href="https://github.com/openai/codex" target="_blank">github.com/openai/codex</a></td>
+      </tr>
+      <tr>
+        <td>Domino Plugin</td>
+        <td><a href="https://github.com/dominodatalab/domino-claude-plugin" target="_blank">github.com/dominodatalab/domino-claude-plugin</a></td>
+      </tr>
+    </tbody>
+  </table>
+
+</div>
+</body>
+</html>

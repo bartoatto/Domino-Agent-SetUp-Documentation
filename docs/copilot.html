@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GitHub Copilot on Domino</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="nav-bar">
+  <img src="domino-logo.svg" alt="Domino" class="logo">
+  <span class="separator">|</span>
+  <div class="nav-links">
+    <a href="index.html">Overview</a>
+    <a href="claude-code.html">Claude Code</a>
+    <a href="codex.html">Codex</a>
+    <a href="cursor.html">Cursor</a>
+    <a href="kiro.html">Kiro</a>
+    <a href="copilot.html" class="active">Copilot</a>
+  </div>
+</div>
+<div class="content">
+
+<h1>GitHub Copilot on Domino</h1>
+<p class="subtitle">Agent-specific configuration for GitHub Copilot</p>
+
+<p>GitHub Copilot is an AI coding assistant available as a VS Code extension (with agent mode) and as a CLI (<code>gh copilot</code>). It reads <code>.github/copilot-instructions.md</code> for persistent instructions and supports MCP servers via <code>.vscode/mcp.json</code>.</p>
+
+<p><strong>Official documentation:</strong> <a href="https://docs.github.com/en/copilot">docs.github.com/en/copilot</a></p>
+
+<blockquote>
+  <p><strong>Note:</strong> The shared setup (Domino plugin, common Dockerfile, project template concept) is covered on the <a href="index.html">Overview</a> page. This page covers only the Copilot-specific parts.</p>
+</blockquote>
+
+<blockquote>
+  <p><strong>Important:</strong> Copilot MCP tools are only available in <strong>agent mode</strong>. You must select "Agent" in the Copilot Chat mode dropdown (VS Code 1.99+). MCP tools are invisible in Ask or Edit mode.</p>
+</blockquote>
+
+<hr>
+
+<h2>Template Files</h2>
+
+<div class="file-tree">/mnt/code/
+├── domino_project_settings.md             ← Project name/user (shared)
+├── .github/
+│   ├── copilot-instructions.md            ← System prompt (read every session)
+│   └── instructions/
+│       └── domino.instructions.md         ← Path-specific Domino instructions
+└── .vscode/
+    └── mcp.json                           ← MCP server config</div>
+
+<ul>
+  <li><code>.github/copilot-instructions.md</code> is read automatically at every agent mode session. It tells Copilot what it is, what it can do, and how to behave.</li>
+  <li><code>.github/instructions/*.instructions.md</code> files apply conditionally based on <code>applyTo</code> glob patterns.</li>
+  <li><code>.vscode/mcp.json</code> starts the Domino MCP server.</li>
+</ul>
+
+<hr>
+
+<h2>Environment Setup</h2>
+
+<p>Copilot is a VS Code extension &mdash; it does <strong>not</strong> need to be installed in the Domino environment. The environment only needs the MCP server dependencies (covered on the <a href="index.html">Overview</a> page).</p>
+
+<p><strong>Users need:</strong></p>
+<ul>
+  <li>VS Code 1.99+ (for agent mode with MCP support)</li>
+  <li>GitHub Copilot extension installed</li>
+  <li>A GitHub Copilot subscription (Individual, Business, or Enterprise)</li>
+</ul>
+
+<hr>
+
+<h2>Pre-Run Script</h2>
+
+<p>Very simple &mdash; just populate <code>domino_project_settings.md</code>:</p>
+
+<pre><code class="language-bash">#!/bin/bash
+# start_workspace.sh — Domino pre-run script for GitHub Copilot
+set -e
+echo "=== Copilot Workspace Setup ==="
+
+# Populate domino_project_settings.md
+if [ -f "/mnt/code/domino_project_settings.md" ] && \
+   [ -n "$DOMINO_PROJECT_NAME" ] && [ -n "$DOMINO_USER_NAME" ]; then
+    cat > /mnt/code/domino_project_settings.md << EOF
+# Domino project settings to use with the MCP server domino_server
+project_name="${DOMINO_PROJECT_NAME}"
+user_name="${DOMINO_USER_NAME}"
+EOF
+    echo "[ok] domino_project_settings.md populated"
+fi
+
+echo "=== Copilot setup complete ==="</code></pre>
+
+<hr>
+
+<h2>Template File Contents</h2>
+
+<h3><code>.vscode/mcp.json</code></h3>
+
+<p>Starts the Domino MCP server. <strong>Important:</strong> VS Code uses <code>servers</code> as the root key, <em>not</em> <code>mcpServers</code>. This is the most common setup mistake &mdash; copy-pasting a Claude Code or Cursor config without changing the root key means the server will not load.</p>
+
+<pre><code class="language-json">{
+  "servers": {
+    "domino_server": {
+      "command": "python",
+      "args": [
+        "/mnt/imported/code/domino-data-lab-plugin/mcp-servers/domino_mcp_server/domino_mcp_server.py"
+      ],
+      "env": {
+        "DOMINO_API_KEY": "${DOMINO_USER_API_KEY}",
+        "DOMINO_HOST": "${DOMINO_API_HOST}"
+      }
+    }
+  }
+}</code></pre>
+
+<h3><code>.github/copilot-instructions.md</code></h3>
+
+<p>The persistent system prompt. Copilot instructions are plain Markdown with no frontmatter.</p>
+
+<pre><code class="language-markdown"># Domino Platform Instructions
+
+You are a Domino Data Lab powered agentic tool that helps run tasks
+and workflows on the Domino Data Lab platform on behalf of the user
+using available tool functions provided by the domino_server MCP server.
+
+## Domino Project Settings
+
+Before making any MCP tool calls, read `domino_project_settings.md` to get
+the `project_name` and `user_name`. If they contain placeholder values,
+immediately update the file with the real values from environment variables:
+- Project name: `$DOMINO_PROJECT_NAME`
+- Username: `$DOMINO_USER_NAME`
+
+## MCP Server
+
+The `domino_server` MCP is configured in `.vscode/mcp.json`. Available tools:
+- `run_domino_job` — run a script as a Domino job
+- `check_domino_job_run_status` / `check_domino_job_run_results` — poll and retrieve job output
+- `list_domino_project_files` — browse project files
+- `sync_local_file_to_domino` / `smart_sync_file` / `upload_file_to_domino_project`
+  / `download_file_from_domino_project` — file sync
+- `get_domino_environment_info` — inspect compute environments
+- `open_web_browser` — open Domino URLs
+
+## Core Behavior
+
+- For training or data extraction tasks, run commands as Domino jobs rather
+  than in the local terminal. This ensures governance, reproducibility,
+  and audit trails.
+- When running a job, always check its status and results if completed,
+  and briefly explain any conclusions from the result of the job run.
+- If a job result includes an MLflow or experiment run URL, share that
+  URL with the user.
+
+## Data Access
+
+- Project data is accessible under /mnt/data/{PROJECT_NAME}/ (local
+  dataset) or /mnt/imported/data/ (shared/imported datasets).
+- Before using a dataset, run a job to list all folder contents
+  recursively to understand the full path to dataset files.
+- Always create scripts to understand and transform data via job runs.
+- Analytical outputs should be in plain text tabular format sent to
+  stdout for easy result checking.
+
+## Git Discipline
+
+- Always check for uncommitted changes before running Domino jobs.
+- You must commit and push changes before running any Domino jobs,
+  because Domino executes against the remote repository state.
+
+## App Development
+
+- When building Domino apps, bind to 0.0.0.0 (not localhost).
+- Use base: './' in Vite config for React apps behind Domino proxy.
+- Create an app.sh as the launch file entry point.</code></pre>
+
+<h3><code>.github/instructions/domino.instructions.md</code> (optional)</h3>
+
+<p>Path-specific instructions that apply only when working with certain files. Uses <code>applyTo</code> frontmatter with glob syntax:</p>
+
+<pre><code class="language-markdown">---
+applyTo: "**/*.py"
+---
+
+When writing Python scripts that will run as Domino jobs:
+- Include `#!/usr/bin/env python3` as the first line
+- Print results to stdout in plain text tabular format
+- Use `/mnt/data/` paths for dataset access, not relative paths
+- Log experiment metrics with MLflow when doing model training</code></pre>
+
+<hr>
+
+<h2>Instructions Format</h2>
+
+<p>Copilot does <strong>not</strong> use the Agent Skills standard. It has its own instructions system with three levels:</p>
+
+<table>
+  <thead><tr><th>Level</th><th>Source</th><th>Priority</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Personal</strong></td><td>VS Code settings</td><td>Highest</td></tr>
+    <tr><td><strong>Repository</strong></td><td><code>.github/copilot-instructions.md</code></td><td>Medium</td></tr>
+    <tr><td><strong>Organization</strong></td><td>GitHub org settings</td><td>Lowest</td></tr>
+  </tbody>
+</table>
+
+<p>For domain-specific knowledge, create <code>.instructions.md</code> files in <code>.github/instructions/</code>:</p>
+
+<pre><code class="language-markdown">---
+applyTo: "pipelines/**/*.py"
+---
+
+# ETL Pipeline Rules
+
+## Overview
+Rules for running ETL pipelines on Domino using Spark.
+
+## Key tools
+Use the domino_server MCP tools to run pipeline scripts as Domino jobs.
+
+## Rules
+- All pipelines read from /mnt/imported/data/warehouse/
+- Output to /mnt/data/{PROJECT_NAME}/pipeline-output/
+- Log metrics with MLflow</code></pre>
+
+<p>Multiple glob patterns can be comma-separated: <code>applyTo: "**/*.ts,**/*.tsx"</code></p>
+
+<h3>Converting Agent Skills to Copilot instructions</h3>
+
+<p>If you have skills in the Agent Skills standard (<code>SKILL.md</code> format, used by Claude Code, Codex, and Kiro), convert to Copilot format:</p>
+
+<table>
+  <thead><tr><th>Agent Skills (SKILL.md)</th><th>Copilot (.instructions.md)</th></tr></thead>
+  <tbody>
+    <tr><td><code>name: etl-pipeline</code></td><td>(use filename instead)</td></tr>
+    <tr><td><code>description: Rules for ETL...</code></td><td><code>applyTo: "pipelines/**/*.py"</code></td></tr>
+    <tr><td>Body content</td><td>Same body content</td></tr>
+  </tbody>
+</table>
+
+<hr>
+
+<h2>Complete Template</h2>
+
+<div class="file-tree">/mnt/code/                                     ← Your project
+├── domino_project_settings.md             ← project_name and user_name
+├── .github/
+│   ├── copilot-instructions.md            ← Platform rules, data paths, compliance
+│   └── instructions/
+│       ├── domino.instructions.md         ← Domino conventions for Python files
+│       ├── etl-pipeline.instructions.md   ← your workflow
+│       ├── data-sources.instructions.md   ← your data access patterns
+│       └── compliance.instructions.md     ← your governance rules
+└── .vscode/
+    └── mcp.json                           ← MCP server config</div>
+
+<hr>
+
+<h2>Extending</h2>
+
+<h3>Custom agents</h3>
+
+<p>Copilot supports custom agent profiles in <code>.github/agents/*.md</code> with YAML frontmatter:</p>
+
+<pre><code class="language-markdown">---
+name: domino-assistant
+description: Helps run Domino jobs and manage experiments
+tools:
+  - "domino_server/*"
+---
+
+You are a Domino platform assistant. Use the domino_server MCP tools
+to run jobs, check status, and manage project files.</code></pre>
+
+<h3>Custom MCP servers</h3>
+
+<p>Register in <code>.vscode/mcp.json</code> using the <code>servers</code> root key (not <code>mcpServers</code>):</p>
+
+<pre><code class="language-json">{
+  "servers": {
+    "domino_server": { ... },
+    "my_custom_server": {
+      "command": "python",
+      "args": [".vscode/mcp-servers/my_server.py"]
+    }
+  }
+}</code></pre>
+
+<h3>Organization-level instructions</h3>
+
+<p>GitHub organizations can configure Copilot instructions that apply across all repositories. Configure in GitHub.com under Organization settings &gt; Copilot &gt; Custom instructions.</p>
+
+<h3>Copilot CLI</h3>
+
+<p>For terminal use, the CLI stores MCP config at <code>~/.copilot/mcp-config.json</code>. Note: the CLI uses <code>mcpServers</code> as the root key (matching Claude Code), <em>not</em> <code>servers</code>.</p>
+
+<h3>AGENTS.md support (experimental)</h3>
+
+<p>VS Code Copilot has experimental support for <code>AGENTS.md</code> (enable via <code>chat.useAgentsMdFile</code>) and <code>CLAUDE.md</code> (enable via <code>chat.useClaudeMdFile</code>). These are opt-in and not yet stable.</p>
+
+<hr>
+
+<h2>Verification</h2>
+
+<p>Open the project in VS Code with Copilot. Switch to <strong>Agent mode</strong> (Cmd+L or Ctrl+L, then select "Agent" from dropdown). Ask:</p>
+
+<pre><code>What MCP tools do you have available?</code></pre>
+
+<p>Copilot should list the tools from the <code>domino_server</code> MCP server.</p>
+
+<blockquote><p><strong>Gotcha:</strong> The first time Copilot uses an MCP server, it asks for trust confirmation. Accept it once and it persists.</p></blockquote>
+
+<hr>
+
+<h2>Resources</h2>
+<ul>
+  <li><a href="https://docs.github.com/en/copilot">GitHub Copilot documentation</a></li>
+  <li><a href="https://code.visualstudio.com/docs/copilot/customization/custom-instructions">VS Code custom instructions</a></li>
+  <li><a href="https://code.visualstudio.com/docs/copilot/customization/mcp-servers">VS Code MCP servers</a></li>
+  <li><a href="https://docs.github.com/en/copilot/tutorials/enhance-agent-mode-with-mcp">Agent mode with MCP</a></li>
+  <li><a href="https://docs.github.com/en/copilot/reference/custom-agents-configuration">Custom agents reference</a></li>
+  <li><a href="https://github.com/dominodatalab/domino-claude-plugin">Domino plugin repository</a></li>
+</ul>
+
+</div>
+</body>
+</html>
